@@ -1,0 +1,4 @@
+[submodule "networks_minimal"]
+    path = env/dependencies/networks_minimal
+    url = git@github.com:gsiddhant/networks_minimal.git
+    branch = header
