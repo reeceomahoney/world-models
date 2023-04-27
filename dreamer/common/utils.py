@@ -59,7 +59,7 @@ def tensorboard_launcher(directory_path):
     webbrowser.open_new(url)
 
 
-def init_config(config_path, env_name, ditto_config_path=None):
+def init_config(config_path, env_name):
     with open(config_path, 'r') as f:
         full_config_dict = YAML().load(f)
     config_dict = full_config_dict['default']
@@ -71,11 +71,9 @@ def init_config(config_path, env_name, ditto_config_path=None):
             config_dict[key] = value
 
     # ditto mode
-    if ditto_config_path:
+    if config_dict['ditto']:
         print('ditto mode')
-        with open(ditto_config_path, 'r') as f:
-            ditto_config_dict = YAML().load(f)['default']
-        for key, value in ditto_config_dict.items():
+        for key, value in full_config_dict['ditto'].items():
             config_dict[key] = value
 
     # debug mode

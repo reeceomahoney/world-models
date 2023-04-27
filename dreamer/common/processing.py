@@ -4,7 +4,6 @@ import torch
 
 import dreamer.common as common
 
-
 size = lambda x: len(next(iter(x.values())))
 
 

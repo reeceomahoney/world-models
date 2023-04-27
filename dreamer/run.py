@@ -1,9 +1,8 @@
-import os
 import argparse
+import os
 import time
 from collections import OrderedDict
 
-import gymnasium as gym
 import torch
 
 import dreamer.common as common

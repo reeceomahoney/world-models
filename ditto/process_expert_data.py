@@ -1,11 +1,10 @@
-import os
+import ast
 from pathlib import Path
 
 import numpy as np
-from bagpy import bagreader
 import pandas as pd
+from bagpy import bagreader
 from scipy.spatial.transform import Rotation as R
-import ast
 
 
 def read_bag(bag_dir, bag_name, topics):

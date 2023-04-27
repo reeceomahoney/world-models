@@ -1,9 +1,9 @@
-import os
 import argparse
+import os
 import pickle
-from tqdm import tqdm
 
 import torch
+from tqdm import tqdm
 
 import common
 from agent import Agent

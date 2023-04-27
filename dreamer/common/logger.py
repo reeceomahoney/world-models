@@ -1,6 +1,5 @@
-import os
-import time
 import pickle
+import time
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -129,7 +128,8 @@ class Logger:
         print(f"step: {step}")
         print(f"time: {dt:.3f}s")
         print("-----------------------------------------")
-        print(f"world model loss: {info['pred_loss']:.3f}  kl loss: {info['kl_loss']:.3f}")
+        if 'pred_loss' and 'kl_loss' in info:
+            print(f"world model loss: {info['pred_loss']:.3f}  kl loss: {info['kl_loss']:.3f}")
         if 'policy_loss' and 'value_loss' in info:
             print(f"policy loss: {info['policy_loss'].item():.3f}  value loss: {info['value_loss'].item():.3f}")
 
