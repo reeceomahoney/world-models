@@ -1,0 +1,5 @@
+default:
+  ditto: True
+  ditto_wm_steps: 10
+  ditto_il_steps: 1000
+  ditto_batch_size: 512
