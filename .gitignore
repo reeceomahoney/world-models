@@ -7,3 +7,4 @@
 /raisim_gym_torch.egg-info/
 /venv/
 /.idea/
+*/__pycache__/
