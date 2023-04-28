@@ -1,0 +1,10 @@
+bagpy==0.5
+env==0.1.0
+gymnasium[mujoco]==0.28.1
+numpy==1.24.3
+pandas==2.0.1
+ruamel.yaml==0.17.21
+scipy==1.10.1
+tensorboard==2.12.2
+torch==2.0.0
+tqdm==4.65.0
