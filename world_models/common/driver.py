@@ -69,7 +69,7 @@ class RaisimDriver(DriverBase):
     def __init__(self, config, config_dict):
         super(RaisimDriver, self).__init__(config)
         self._raisim_config = config_dict
-        rsc_path = os.path.dirname(os.path.realpath(__file__)) + '/../../env/rsc'
+        rsc_path = os.path.dirname(os.path.realpath(__file__)) + '/../env/rsc'
         self._env = raisim_env.VecEnv(raisim_env.RaisimGymEnv(
             rsc_path, dump(self._raisim_config, Dumper=RoundTripDumper)), normalize_ob=False)
         self._env.turn_off_visualization()
