@@ -3,7 +3,7 @@
 *.bag
 *.npy
 *.so
-/logs/
+*/logs/
 /raisim_gym_torch.egg-info/
 /venv/
 /.idea/
