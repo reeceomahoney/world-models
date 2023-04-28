@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(world_model)
+project(world_models)
 
 set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_PREFIX_PATH $ENV{LOCAL_INSTALL})
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/env/gym_envs/${PROJECT_NAME}/build)
-
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/env/gym_envs/${PROJECT_NAME}/build)
 
 ######################
 ### help functions ###
@@ -40,20 +39,20 @@ find_package(raisim CONFIG REQUIRED)
 
 include_directories(
         ${EIGEN3_INCLUDE_DIRS}
-        env/dependencies/actuation_dynamics_inference/include
-        env/dependencies/networks_minimal/include
-        env/raisim_gym_torch/env)
+        world_models/env/dependencies/actuation_dynamics_inference/include
+        world_models/env/dependencies/networks_minimal/include
+        world_models/env/raisim_gym)
 
 #######################
 ### src and linking ###
 #######################
-set(RAISIMGYM_ENV_DIR ${CMAKE_SOURCE_DIR}/env/gym_envs)
+set(RAISIMGYM_ENV_DIR ${CMAKE_SOURCE_DIR}/world_models/env/gym_envs)
 #SUBDIRLIST(SUBDIRS ${RAISIMGYM_ENV_DIR})
 set(SUBDIRS ${PROJECT_NAME})
 
 ######## Env ##########
 FOREACH(subdir ${SUBDIRS})
-    pybind11_add_module(${subdir} env/raisim_gym_torch/env/raisim_gym.cpp env/raisim_gym_torch/env/Yaml.cpp)
+    pybind11_add_module(${subdir} world_models/env/raisim_gym/raisim_gym.cpp world_models/env/raisim_gym/Yaml.cpp)
     target_link_libraries(${subdir} PRIVATE raisim::raisim)
     target_include_directories(${subdir} PUBLIC 
         ${RAISIMGYM_ENV_DIR}/${subdir})

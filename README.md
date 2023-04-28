@@ -1,4 +1,4 @@
-# World Model
+# World Models
 
 A project implementing the dreamer world model in PyTorch. This repository can run experiments in both OpenAI gym and
 RaiSim.
