@@ -15,11 +15,25 @@ To start using this repository, you must first have raisim installed. To do this
 https://raisim.com/sections/Installation.html. It is assumed that your installation directory is called
 ```$LOCAL_INSTALL```
 
-Once this is complete, clone the repository and run the following:
+Once this is complete, clone the repository:
 
 ```bash
 git clone --recursive-submodules git@github.com:reeceomahoney/world-model.git
-python setup.py develop
+```
+
+Build:
+
+```bash
+mkdir build
+cd build
+cmake ..
+make -j4
+```
+
+Then install python packages:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ### Usage
@@ -27,7 +41,8 @@ python setup.py develop
 To run an experiment, use the following command:
 
 ```bash
-python dreamer/run.py --env <env_name>
+cd world_models
+python train.py --env <env_name>
 ```
 
 Logging can be done using tensorboard:
