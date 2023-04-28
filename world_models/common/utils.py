@@ -70,9 +70,8 @@ def init_config(config_path, env_name):
         for key, value in full_config_dict['raisim'].items():
             config_dict[key] = value
 
-    # ditto mode
-    if config_dict['ditto']:
-        print('ditto mode')
+    # ditto
+    if sys.argv[0] == 'ditto.py':
         for key, value in full_config_dict['ditto'].items():
             config_dict[key] = value
 

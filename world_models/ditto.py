@@ -3,11 +3,11 @@ import os
 
 import numpy as np
 
-import dreamer.common as common
-from dreamer.agent import Agent
+import common as common
+from agent import Agent
 
 # paths
-home_path = os.path.dirname(os.path.realpath(__file__)) + '/../'
+home_path = os.path.dirname(os.path.realpath(__file__))
 
 # parse args
 parser = argparse.ArgumentParser()
@@ -15,7 +15,7 @@ parser.add_argument('--env', type=str, default='raisim')
 args = parser.parse_args()
 
 # config and env
-config, config_dict = common.init_config(home_path + '/dreamer/config.yaml', args.env)
+config, config_dict = common.init_config(home_path + '/config.yaml', args.env)
 env_driver = common.get_driver(config, config_dict)
 obs_dim = env_driver.env_info()[0]
 print(f'using device: {config.device}')
@@ -25,7 +25,7 @@ replay = common.ReplayBuffer(config, ('obs', 'cont', 'action'))
 logger = common.Logger(config, agent, env_driver, replay)
 
 # load expert data
-expert_data = np.load(home_path + 'ditto/data/expert.npy')
+expert_data = np.load(home_path + '/ditto/data/expert.npy')
 step = 0
 print('loading expert data...')
 for i in range(expert_data.shape[0]):

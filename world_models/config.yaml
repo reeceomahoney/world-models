@@ -18,7 +18,6 @@ default:
   record: False
   real_time_eval: False
   zero_shot: False
-  ditto: False
   save_datasets: False
 
   # Model
