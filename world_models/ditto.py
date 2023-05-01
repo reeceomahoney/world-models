@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 import numpy as np
 
@@ -45,8 +46,21 @@ for step in range(config.ditto_wm_steps):
     logger.log(info, step, should_log(step), False)
 agent.encode_expert_data(replay)
 
+h_t = env_driver.reset()[1]
+timer = common.Timer(config.control_dt, sleep=True)
+env_driver.turn_on_visualization()
+for step in range(1000):
+    data = replay.sample(1, config.imag_horizon + 1)
+    for i in range(next(iter(data.values())).shape[0]):
+        timer.start()
+        obs_target = agent.world_model.decode(data['state'][i])
+        env_driver.set_target(obs_target.cpu().numpy())
+        timer.end()
+env_driver.turn_off_visualization()
+
 # imitation learning
 print('\nimitation learning...')
+config.log_every = 1e3
 should_log = common.Every(config.log_every)
 should_eval = common.Every(config.eval_every)
 for step in range(int(config.ditto_il_steps)):

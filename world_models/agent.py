@@ -98,13 +98,13 @@ class Agent(torch.nn.Module):
         return {**info, **ac_info}
 
     def ditto_step(self, replay):
-        self.world_model.requires_grad_(False)
         self.expert_states = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)['state'].detach()
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
-        self.all_expert_states = self._compute_latent_states(replay, {'state': []}, expert=True)[-1]
-        replay.set_buffer(self.all_expert_states)  # overwrite replay buffer with expert states (bit of a hack)
+        self.world_model.requires_grad_(False)  # permanently disable gradients
+        data, states = self._compute_latent_states(replay, {'state': []}, expert=True)
+        replay.set_buffer(data, states)  # overwrite replay buffer with expert states (bit of a hack)
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
@@ -286,7 +286,7 @@ class Agent(torch.nn.Module):
     def _calculate_ditto_rewards(self, states):
         # dot product
         reward = torch.sum(self.expert_states[1:] * states, dim=-1)
-        reward /= torch.maximum(torch.norm(self.expert_states[1:], dim=-1), torch.norm(states, dim=-1))
+        reward /= (torch.maximum(torch.norm(self.expert_states[1:], dim=-1), torch.norm(states, dim=-1)) ** 2)
         return reward.unsqueeze(-1)
 
     # --------------------------------------------------------------------------------------------------------------

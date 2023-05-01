@@ -1,7 +1,7 @@
 default:
   # Environment
   num_envs: 1
-  steps: 1e6
+  steps: 1e8
   replay_size: 1e6
   time_limit: 1000
   batch_length: 64
@@ -61,7 +61,7 @@ raisim:
   batch_length: 64
   action_repeat: 1
   log_every: 2e2
-  eval_every: 2e3
+  eval_every: 1e4
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -99,3 +99,4 @@ debug:
   eval_steps: 300
   device: 'cuda'
   rick: False
+  ditto_wm_steps: 10

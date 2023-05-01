@@ -3,7 +3,7 @@
 // Copyright 2020, RaiSim Tech//
 //----------------------------//
 
-#include "Environment.hpp"
+#include "../Environment.hpp"
 #include "VectorizedEnvironment.hpp"
 
 int THREAD_COUNT = 1;

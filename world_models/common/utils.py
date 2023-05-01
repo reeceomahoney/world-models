@@ -4,6 +4,7 @@ import sys
 import webbrowser
 from datetime import datetime
 from shutil import copyfile
+import time
 
 import torch
 from ruamel.yaml import YAML
@@ -50,6 +51,21 @@ class Every:
         return False
 
 
+class Timer:
+    def __init__(self, real_delta, sleep):
+        self._real_delta = real_delta
+        self._sleep = sleep
+        self._start = None
+
+    def start(self):
+        self._start = time.time()
+
+    def end(self):
+        delta = time.time() - self._start
+        if delta < self._real_delta and self._sleep:
+            time.sleep(self._real_delta - delta)
+
+
 def tensorboard_launcher(directory_path):
     # learning visualizer
     tb = program.TensorBoard()
@@ -71,7 +87,8 @@ def init_config(config_path, env_name):
             config_dict[key] = value
 
     # ditto
-    if sys.argv[0] == 'ditto.py':
+    if sys.argv[0].endswith('ditto.py'):
+        config_dict['ditto'] = True
         for key, value in full_config_dict['ditto'].items():
             config_dict[key] = value
 

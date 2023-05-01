@@ -14,8 +14,11 @@
 #include "RaisimGymEnv.hpp"
 
 #include "actuation_dynamics_inference/Actuation.hpp"
-#include "Utility.hpp"
 
+
+double logisticKernel(double x) {
+    return 1/(exp(x) + 2 + exp(-x));
+}
 
 namespace raisim {
 
@@ -58,6 +61,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     actionMean_.setZero(actionDim_), actionStd_.setZero(actionDim_);
     obDouble_.setZero();
     desiredVel_.setZero();
+    pTarget_.setZero();
 
     anymal_->setGeneralizedForce(gf_);
     timeSinceReset_ = 0;
@@ -95,6 +99,12 @@ class ENVIRONMENT : public RaisimGymEnv {
       server_->launchServer(8086);
       server_->focusOn(anymal_);
     }
+
+    Eigen::VectorXd pGains = Eigen::VectorXd::Zero(18);
+    Eigen::VectorXd dGains = Eigen::VectorXd::Zero(18);
+    pGains.tail(12) = 80 * Eigen::VectorXd::Ones(12);
+    dGains.tail(12) = 5 * Eigen::VectorXd::Ones(12);
+    anymal_->setPdGains(pGains, dGains);
   }
 
   void init() final { }
@@ -211,6 +221,33 @@ class ENVIRONMENT : public RaisimGymEnv {
     }
   }
 
+  void setTarget(const Eigen::Ref<EigenVec>& decodedObs) {
+      Eigen::VectorXd pTarget(18);
+      raisim::Vec<3> euler;
+      raisim::Vec<4> quat;
+      Eigen::VectorXd obs = decodedObs.cast<double>();
+
+      euler[0] = obs[0]; euler[1] = obs[1]; euler[2] = obs[2];
+      raisim::eulerVecToQuat(euler, quat);
+
+      pTarget_.segment(3, 4) = quat.e();
+      pTarget_.segment(7, 12) = obs.segment(3, 12);
+      dTarget_.segment(0, 3) = obs.segment(15, 3);
+      dTarget_.segment(3, 3) = obs.segment(18, 3);
+      dTarget_.segment(6, 12) = obs.segment(21, 12);
+
+      for(int i=0; i< int(control_dt_ / simulation_dt_ + 1e-10); i++){
+          if(server_) server_->lockVisualizationServerMutex();
+
+          // Don't use pd just set state
+          anymal_->setPdTarget(pTarget_, dTarget_);
+          world_->integrate();
+          updateObservation();
+
+          if(server_) server_->unlockVisualizationServerMutex();
+      }
+  }
+
  private:
   int gcDim_, gvDim_, nJoints_;
   bool visualizable_ = false, addVelNoise_, randInitState_;
@@ -220,6 +257,10 @@ class ENVIRONMENT : public RaisimGymEnv {
   Eigen::Matrix<double, 36, 1> obDouble_;
   Eigen::Matrix<double, 19, 1> gc_init_, gc_rand_, pos_var_;
   Eigen::Matrix<double, 18, 1> gv_init_, gv_rand_, vel_var_, gf_;
+
+  Eigen::Matrix<double, 19, 1> pTarget_;
+  Eigen::Matrix<double, 18, 1> dTarget_;
+
   Eigen::Matrix<double, 12, 1> actionMean_, actionStd_, torque_;
   Eigen::Matrix<double, 12, 1> jointTarget_, jointPositionErrors_, jointVelocities_, jointAngles_;
   Eigen::Matrix<double, 3, 1> bodyLinearVel_, bodyAngularVel_, desiredVel_, maxDesiredVel_, orientation_;

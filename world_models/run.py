@@ -5,11 +5,11 @@ from collections import OrderedDict
 
 import torch
 
-import dreamer.common as common
+import common as common
 from agent import Agent
 
 # paths
-home_path = os.path.dirname(os.path.realpath(__file__)) + '/..'
+home_path = os.path.dirname(os.path.realpath(__file__))
 
 # parse args
 parser = argparse.ArgumentParser()
@@ -38,6 +38,7 @@ agent.load_state_dict(agent_state_dict, strict=False)
 
 obs, h_t, action = env_driver.reset()
 for _ in range(config.eval_eps):
+    print("foo")
     for step in range(config.eval_steps):
         start = time.time()
         obs, reward, done = env_driver(action)

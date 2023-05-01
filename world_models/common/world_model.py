@@ -31,6 +31,9 @@ class WorldModel(nn.Module):
     def encode(self, h_t, obs):
         return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
 
+    def decode(self, state):
+        return self._decoder(state).mode
+
     def step(self, state, action):
         # step latent state in imagination
         h_t1 = self.forward(state[..., :self.h_dim], state[..., self.h_dim:], action)

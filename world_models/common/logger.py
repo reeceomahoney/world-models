@@ -60,20 +60,19 @@ class Logger:
             eval_driver = self.env_driver
             eval_driver.turn_on_visualization()
             self._replay.add_episode()
+            timer = Timer(self.config.control_dt, self.config.real_time_eval)
         else:
             eval_driver = GymDriver(self.config, render=not self.config.ssh)
+            timer = Timer(0.01 * self.config.action_repeat, self.config.real_time_eval)
 
         for _ in range(self.config.eval_eps):
             obs, h_t, _ = eval_driver.reset()
             for t in range(self.config.eval_steps):
-                start = time.time()
+                timer.start()
                 preds, h_t, action = self.agent.predict(h_t, obs)
                 obs, reward, done = eval_driver(action)
                 self._update_eval_info(obs, reward, done, preds)
-                delta = time.time() - start
-                sim_delta = 0.04 * self.config.action_repeat
-                if delta < sim_delta and self.config.real_time_eval:
-                    time.sleep(sim_delta - delta)
+                timer.end()
                 if done.any():
                     obs, h_t, _ = eval_driver.reset()
 

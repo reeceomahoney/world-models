@@ -6,21 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_PREFIX_PATH $ENV{LOCAL_INSTALL})
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/env/gym_envs/${PROJECT_NAME}/build)
-
-######################
-### help functions ###
-######################
-MACRO(SUBDIRLIST result curdir)
-    FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
-    SET(dirlist "")
-    FOREACH(child ${children})
-        IF(IS_DIRECTORY ${curdir}/${child})
-            LIST(APPEND dirlist ${child})
-        ENDIF()
-    ENDFOREACH()
-    SET(${result} ${dirlist})
-ENDMACRO()
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/env/build)
 
 ####################
 ### dependencies ###
@@ -46,25 +32,13 @@ include_directories(
 #######################
 ### src and linking ###
 #######################
-set(RAISIMGYM_ENV_DIR ${CMAKE_SOURCE_DIR}/world_models/env/gym_envs)
-#SUBDIRLIST(SUBDIRS ${RAISIMGYM_ENV_DIR})
-set(SUBDIRS ${PROJECT_NAME})
+set(ENV_DIR ${CMAKE_SOURCE_DIR}/world_models/env)
 
 ######## Env ##########
-FOREACH(subdir ${SUBDIRS})
-    pybind11_add_module(${subdir} world_models/env/raisim_gym/raisim_gym.cpp world_models/env/raisim_gym/Yaml.cpp)
-    target_link_libraries(${subdir} PRIVATE raisim::raisim)
-    target_include_directories(${subdir} PUBLIC 
-        ${RAISIMGYM_ENV_DIR}/${subdir})
-    target_compile_options(${subdir} PRIVATE -fPIC -O3 -flto -mno-avx2)
-    target_compile_definitions(${subdir} PRIVATE "-DRAISIMGYM_TORCH_ENV_NAME=${subdir}")
-    target_compile_definitions(${subdir} PRIVATE "$<$<CONFIG:Release>:EIGEN_NO_DEBUG>")
-    target_compile_definitions(${subdir} PRIVATE EIGEN_DONT_PARALLELIZE)
-
-    if (CMAKE_BUILD_TYPE STREQUAL "DEBUG" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
-        message("[RAISIM_GYM] BUILDING THE DEBUG APP for ${subdir}")
-        add_executable(${subdir}_debug_app env/raisim_gym_torch/env/debug_app.cpp env/raisim_gym_torch/env/Yaml.cpp)
-        target_link_libraries(${subdir}_debug_app PRIVATE raisim::raisim)
-        target_include_directories(${subdir}_debug_app PUBLIC env/gym_envs/${subdir} ${EIGEN3_INCLUDE_DIRS} env/raisim_gym_torch/env)
-    endif()
-ENDFOREACH()
+pybind11_add_module(${PROJECT_NAME} world_models/env/raisim_gym/raisim_gym.cpp world_models/env/raisim_gym/Yaml.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE raisim::raisim)
+target_include_directories(${PROJECT_NAME} PUBLIC ${ENV_DIR})
+target_compile_options(${PROJECT_NAME} PRIVATE -fPIC -O3 -flto -mno-avx2)
+target_compile_definitions(${PROJECT_NAME} PRIVATE "-DRAISIMGYM_TORCH_ENV_NAME=${PROJECT_NAME}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:EIGEN_NO_DEBUG>")
+target_compile_definitions(${PROJECT_NAME} PRIVATE EIGEN_DONT_PARALLELIZE)

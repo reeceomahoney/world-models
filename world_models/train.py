@@ -90,3 +90,7 @@ if config.zero_shot:
     for step in range(int(config.steps)):
         info = agent.train_step_zero_shot(replay)
         logger.log(info, step, should_log(step), should_eval(step))
+
+
+# TODO: refactor this into a top level script that calls either dreamer.py or ditto.py
+# TODO: add vision

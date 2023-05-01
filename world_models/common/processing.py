@@ -10,7 +10,7 @@ size = lambda x: len(next(iter(x.values())))
 class ReplayBuffer:
     def __init__(self, config, data_terms):
         # TODO: might be a bug in multi env support
-        # TODO: make this work better with different data terms
+        # TODO: make this work better with different states terms
         self.steps = None
         self.episodes = []
         self._data_terms = data_terms
@@ -27,13 +27,13 @@ class ReplayBuffer:
     def __len__(self):
         return sum([size(eps) for eps in self.episodes]) + size(self.steps) * self.num_envs
 
-    def store(self, data):
+    def store(self, states):
         to_ten = lambda x: torch.tensor(x, dtype=torch.float32).to(self.device)
 
-        step = {'obs': symlog(to_ten(data['obs'])) if 'obs' in self._data_terms else None,
-                'reward': to_ten(data['reward']).unsqueeze(-1) if 'reward' in self._data_terms else None,
-                'cont': to_ten(data['cont']).unsqueeze(-1) if 'cont' in self._data_terms else None,
-                'action': to_ten(data['action']) if 'action' in self._data_terms else None}
+        step = {'obs': symlog(to_ten(states['obs'])) if 'obs' in self._data_terms else None,
+                'reward': to_ten(states['reward']).unsqueeze(-1) if 'reward' in self._data_terms else None,
+                'cont': to_ten(states['cont']).unsqueeze(-1) if 'cont' in self._data_terms else None,
+                'action': to_ten(states['action']) if 'action' in self._data_terms else None}
         step = {k: v for k, v in step.items() if v is not None}
 
         for k in self._data_terms:
@@ -53,7 +53,7 @@ class ReplayBuffer:
     def sample(self, batch, chunk_length=None):
         chunk_length = chunk_length or self.chunk_length
         if 'state' in self.episodes[0]:
-            samples = {'state': []}
+            samples = {'state': [], 'action': []}
         else:
             samples = {k: [] for k in self.steps.keys()}
         all_eps = self._get_all_eps(chunk_length)
@@ -78,10 +78,12 @@ class ReplayBuffer:
             samples[k] = torch.stack(samples[k]).swapaxes(0, 1)
         return samples
 
-    def set_buffer(self, data):
-        data = list(torch.split(next(iter(data.values())), 1, dim=1))
-        data = [torch.squeeze(x, dim=1) for x in data]
-        self.episodes = [{'state': v} for v in data]
+    def set_buffer(self, data, states):
+        states = list(torch.split(next(iter(states.values())), 1, dim=1))
+        states = [torch.squeeze(x, dim=1) for x in states]
+        actions = list(torch.split(data['action'], 1, dim=1))
+        actions = [torch.squeeze(x, dim=1) for x in actions]
+        self.episodes = [{'state': s, 'action': a} for s, a in zip(states, actions)]
         self.clear()
 
     def _enforce_limit(self):
