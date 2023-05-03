@@ -39,11 +39,6 @@ else:
         replay = pickle.load(handle)
 logger = common.Logger(config, agent, env_driver, replay)
 
-import time
-start = time.time()
-foo = [{k: torch.randn((100, 100)) for k in ['a', 'b', 'c', 'd']}]
-
-
 if not config.zero_shot:
     print('prefilling buffer...')
     pbar = tqdm(total=config.prefill)
