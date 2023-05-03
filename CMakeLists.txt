@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_PREFIX_PATH $ENV{LOCAL_INSTALL})
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/env/build)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/raisim_gym/build)
 
 ####################
 ### dependencies ###
@@ -25,17 +25,19 @@ find_package(raisim CONFIG REQUIRED)
 
 include_directories(
         ${EIGEN3_INCLUDE_DIRS}
-        world_models/env/dependencies/actuation_dynamics_inference/include
-        world_models/env/dependencies/networks_minimal/include
-        world_models/env/raisim_gym)
+        world_models/raisim_gym/dependencies/actuation_dynamics_inference/include
+        world_models/raisim_gym/dependencies/networks_minimal/include
+        world_models/raisim_gym/raisim_gym)
 
 #######################
 ### src and linking ###
 #######################
-set(ENV_DIR ${CMAKE_SOURCE_DIR}/world_models/env)
+set(ENV_DIR ${CMAKE_SOURCE_DIR}/world_models/raisim_gym)
 
 ######## Env ##########
-pybind11_add_module(${PROJECT_NAME} world_models/env/raisim_gym/raisim_gym.cpp world_models/env/raisim_gym/Yaml.cpp)
+pybind11_add_module(${PROJECT_NAME}
+        world_models/raisim_gym/raisim_gym/raisim_gym.cpp
+        world_models/raisim_gym/raisim_gym/Yaml.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE raisim::raisim)
 target_include_directories(${PROJECT_NAME} PUBLIC ${ENV_DIR})
 target_compile_options(${PROJECT_NAME} PRIVATE -fPIC -O3 -flto -mno-avx2)

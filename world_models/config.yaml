@@ -84,9 +84,11 @@ raisim:
     turnVelMax: 1.2
 
 ditto:
-  ditto_wm_steps: 1000
+  ditto_wm_steps: 1e6
+  ditto_wm_eval_every: 1e3
   ditto_il_steps: 1e6
   ditto_batch_size: 512
+  ditto_batch_length: 50
 
 debug:
   num_envs: 1

@@ -1,11 +1,12 @@
-import os
-
 import gymnasium as gym
 import numpy as np
-import torch
 from ruamel.yaml import dump, RoundTripDumper
 
-import env as raisim_env
+import raisim_gym
+from .utils import *
+
+
+to_np = lambda x: x.detach().cpu().numpy()
 
 
 class DriverBase:
@@ -20,6 +21,9 @@ class DriverBase:
         elif self.config.init_deter == 'normal':
             return 0.01 * torch.randn((self.config.num_envs, self.config.h_dim)).to(self.config.device)
 
+    def _to_ten(self, x):
+        return torch.tensor(x, dtype=torch.float32).to(self.config.device)
+
 
 class GymDriver(DriverBase):
     def __init__(self, config, render=False):
@@ -30,6 +34,7 @@ class GymDriver(DriverBase):
 
     def __call__(self, action):
         self.step += 1
+        obs, reward, done = None, None, None
         for _ in range(self.config.action_repeat):
             obs, reward, done = self._env.step(action)[:3]
         return obs, reward, done
@@ -69,23 +74,23 @@ class RaisimDriver(DriverBase):
     def __init__(self, config, config_dict):
         super(RaisimDriver, self).__init__(config)
         self._raisim_config = config_dict
-        rsc_path = os.path.dirname(os.path.realpath(__file__)) + '/../env/rsc'
-        self._env = raisim_env.VecEnv(raisim_env.RaisimGymEnv(
+        rsc_path = os.path.dirname(os.path.realpath(__file__)) + '/../raisim_gym/rsc'
+        self._env = raisim_gym.VecEnv(raisim_gym.RaisimGymEnv(
             rsc_path, dump(self._raisim_config, Dumper=RoundTripDumper)), normalize_ob=False)
         self._env.turn_off_visualization()
 
     def __call__(self, action):
         self.step += 1
-        for _ in range(self.config.action_repeat):
-            reward, done = self._env.step(action)
-        return self._env.observe(), reward, done
+        obs = symlog(self._to_ten(self._env.observe()))
+        reward, done = self._env.step(to_np(action))
+        return obs, self._to_ten(reward).unsqueeze(-1), self._to_ten(done).unsqueeze(-1)
 
     def reset(self):
         self.step = 0
         self._env.reset()
         h_t = self._init_deter()
-        obs = self._env.observe()
-        action = np.random.randn(self.config.num_envs, self._env.num_acts).astype(np.float32)
+        obs = self._to_ten(self._env.observe())
+        action = torch.randn(self.config.num_envs, self._env.num_acts).to(self.config.device)
         return obs, h_t, action
 
     def env_info(self):

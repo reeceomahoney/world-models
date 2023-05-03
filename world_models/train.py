@@ -25,6 +25,7 @@ env_driver = common.get_driver(config, config_dict)
 print(f'using device: {config.device}')
 
 # agent
+obs_dim, act_dim = env_driver.env_info()[:2]
 agent = Agent(*env_driver.env_info(), config)
 if args.agent is not None:
     agent_state_dict = torch.load(home_path + args.agent, map_location=config.device)
@@ -32,11 +33,16 @@ if args.agent is not None:
 
 # replay buffer
 if args.replay is None:
-    replay = common.ReplayBuffer(config, ('obs', 'reward', 'cont', 'action'))
+    replay = common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})
 else:
     with open(home_path + args.replay, 'rb') as handle:
         replay = pickle.load(handle)
 logger = common.Logger(config, agent, env_driver, replay)
+
+import time
+start = time.time()
+foo = [{k: torch.randn((100, 100)) for k in ['a', 'b', 'c', 'd']}]
+
 
 if not config.zero_shot:
     print('prefilling buffer...')

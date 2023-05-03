@@ -6,6 +6,7 @@ from datetime import datetime
 from shutil import copyfile
 import time
 
+import numpy as np
 import torch
 from ruamel.yaml import YAML
 from tensorboard import program
@@ -66,6 +67,22 @@ class Timer:
             time.sleep(self._real_delta - delta)
 
 
+class RewardEMA:
+    def __init__(self, device, alpha=1e-2):
+        self.device = device
+        self.values = torch.zeros((2,)).to(device)
+        self.alpha = alpha
+        self.range = torch.tensor([0.05, 0.95]).to(device)
+
+    def __call__(self, x):
+        flat_x = torch.flatten(x.detach())
+        x_quantile = torch.quantile(input=flat_x, q=self.range)
+        self.values = self.alpha * x_quantile + (1 - self.alpha) * self.values
+        scale = torch.clip(self.values[1] - self.values[0], min=1.0)
+        offset = self.values[0]
+        return offset.detach(), scale.detach()
+
+
 def tensorboard_launcher(directory_path):
     # learning visualizer
     tb = program.TensorBoard()
@@ -87,6 +104,7 @@ def init_config(config_path, env_name):
             config_dict[key] = value
 
     # ditto
+    config_dict['ditto'] = False
     if sys.argv[0].endswith('ditto.py'):
         config_dict['ditto'] = True
         for key, value in full_config_dict['ditto'].items():
@@ -122,3 +140,9 @@ def symlog(x):
 
 def symexp(x):
     return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
+
+
+def load_expert_data(path, obs_dim, device):
+    expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
+    return {'obs': expert_data[:, :obs_dim], 'action': expert_data[:, obs_dim:]}
+

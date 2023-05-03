@@ -227,24 +227,26 @@ class ENVIRONMENT : public RaisimGymEnv {
       raisim::Vec<4> quat;
       Eigen::VectorXd obs = decodedObs.cast<double>();
 
-      euler[0] = obs[0]; euler[1] = obs[1]; euler[2] = obs[2];
+      euler[0] = obs[0];
+      euler[1] = obs[1];
+      euler[2] = obs[2];
       raisim::eulerVecToQuat(euler, quat);
 
+      pTarget_[2] = 0.55;
       pTarget_.segment(3, 4) = quat.e();
       pTarget_.segment(7, 12) = obs.segment(3, 12);
-      dTarget_.segment(0, 3) = obs.segment(15, 3);
-      dTarget_.segment(3, 3) = obs.segment(18, 3);
-      dTarget_.segment(6, 12) = obs.segment(21, 12);
+      vTarget_.segment(0, 3) = obs.segment(15, 3);
+      vTarget_.segment(3, 3) = obs.segment(18, 3);
+      vTarget_.segment(6, 12) = obs.segment(21, 12);
 
-      for(int i=0; i< int(control_dt_ / simulation_dt_ + 1e-10); i++){
-          if(server_) server_->lockVisualizationServerMutex();
+      for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
+          if (server_) server_->lockVisualizationServerMutex();
 
-          // Don't use pd just set state
-          anymal_->setPdTarget(pTarget_, dTarget_);
+          anymal_->setState(pTarget_, vTarget_);
           world_->integrate();
           updateObservation();
 
-          if(server_) server_->unlockVisualizationServerMutex();
+          if (server_) server_->unlockVisualizationServerMutex();
       }
   }
 
@@ -259,7 +261,7 @@ class ENVIRONMENT : public RaisimGymEnv {
   Eigen::Matrix<double, 18, 1> gv_init_, gv_rand_, vel_var_, gf_;
 
   Eigen::Matrix<double, 19, 1> pTarget_;
-  Eigen::Matrix<double, 18, 1> dTarget_;
+  Eigen::Matrix<double, 18, 1> vTarget_;
 
   Eigen::Matrix<double, 12, 1> actionMean_, actionStd_, torque_;
   Eigen::Matrix<double, 12, 1> jointTarget_, jointPositionErrors_, jointVelocities_, jointAngles_;

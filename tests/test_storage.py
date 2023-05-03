@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dreamer import common
+from world_models import common
 
 
 class TestReplay(unittest.TestCase):

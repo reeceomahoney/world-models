@@ -62,7 +62,7 @@ class Agent(torch.nn.Module):
             z_t = self.world_model.encode(h_t, obs)
             action = self.actor(torch.cat((h_t, z_t), dim=-1)).sample()
             h_t1 = self.world_model.forward(h_t, z_t, action)
-        return h_t1, to_np(action)
+        return h_t1, action
 
     def predict(self, h_t, obs):
         with torch.no_grad():
@@ -102,9 +102,7 @@ class Agent(torch.nn.Module):
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
-        self.world_model.requires_grad_(False)  # permanently disable gradients
-        data, states = self._compute_latent_states(replay, {'state': []}, expert=True)
-        replay.set_buffer(data, states)  # overwrite replay buffer with expert states (bit of a hack)
+        return self._compute_latent_states(replay, {'state': []}, expert=True)
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
@@ -135,14 +133,15 @@ class Agent(torch.nn.Module):
 
     def _compute_latent_states(self, replay, states, expert=False):
         if expert:
-            # TODO: test not discarding data
-            data = replay.sample_all(self.config.batch_length)
+            batch_length = self.config.ditto_batch_length
+            data = replay.sample_all(batch_length)
             h_t = self._init_deter(len(data['obs'][1]))
         else:
+            batch_length = self.config.batch_length
             data = replay.sample(self.config.batch_size)
             h_t = self._init_deter(self.config.batch_size)
 
-        for t in range(self.config.batch_length):
+        for t in range(batch_length):
             obs = data['obs'][t]
             post, prior = self.world_model.get_z_dists(h_t, obs)
             z_t = post.sample()
