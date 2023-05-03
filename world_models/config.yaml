@@ -102,3 +102,4 @@ debug:
   device: 'cuda'
   rick: False
   ditto_wm_steps: 10
+  ditto_wm_eval_every: 0

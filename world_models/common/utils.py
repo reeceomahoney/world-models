@@ -1,10 +1,10 @@
 import ntpath
 import os
 import sys
+import time
 import webbrowser
 from datetime import datetime
 from shutil import copyfile
-import time
 
 import numpy as np
 import torch
@@ -92,11 +92,11 @@ def tensorboard_launcher(directory_path):
     webbrowser.open_new(url)
 
 
-def init_config(config_path, env_name):
+def init_config(config_path, args):
     with open(config_path, 'r') as f:
         full_config_dict = YAML().load(f)
     config_dict = full_config_dict['default']
-    config_dict['env_name'] = env_name
+    config_dict['env_name'] = args.env
 
     # raisim mode
     if config_dict['env_name'] == 'raisim':
@@ -105,7 +105,7 @@ def init_config(config_path, env_name):
 
     # ditto
     config_dict['ditto'] = False
-    if sys.argv[0].endswith('ditto.py'):
+    if args.ditto:
         config_dict['ditto'] = True
         for key, value in full_config_dict['ditto'].items():
             config_dict[key] = value

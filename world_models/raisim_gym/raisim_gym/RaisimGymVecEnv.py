@@ -3,9 +3,10 @@
 # // Copyright 2020, RaiSim Tech//
 # //----------------------------//
 
-import numpy as np
-import platform
 import os
+import platform
+
+import numpy as np
 
 
 class RaisimGymVecEnv:

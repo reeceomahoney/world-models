@@ -33,6 +33,7 @@ make -j4
 Then install python packages:
 
 ```bash
+cd ..
 pip install -r requirements.txt
 ```
 

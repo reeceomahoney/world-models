@@ -1,9 +1,7 @@
-import sys
-
 import torch
 import torch.distributions as D
 
-import common
+import world_models.common as common
 
 to_np = lambda x: x.detach().cpu().numpy()
 

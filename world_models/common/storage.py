@@ -1,8 +1,7 @@
 import random
+
 import numpy as np
-
 import torch
-
 
 size = lambda x: len(next(iter(x.values())))
 

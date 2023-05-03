@@ -1,10 +1,8 @@
 import gymnasium as gym
-import numpy as np
+import world_models.raisim_gym as raisim_gym
 from ruamel.yaml import dump, RoundTripDumper
 
-import raisim_gym
 from .utils import *
-
 
 to_np = lambda x: x.detach().cpu().numpy()
 
