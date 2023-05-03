@@ -18,7 +18,7 @@ https://raisim.com/sections/Installation.html. It is assumed that your installat
 Once this is complete, clone the repository:
 
 ```bash
-git clone --recurse-submodules git@github.com:reeceomahoney/world-model.git
+git clone --recurse-submodules git@github.com:reeceomahoney/world-models
 ```
 
 Build:
