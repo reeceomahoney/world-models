@@ -1,7 +1,6 @@
 /build/
 *.csv
 *.bag
-*.npy
 *.so
 */logs/
 /raisim_gym_torch.egg-info/
