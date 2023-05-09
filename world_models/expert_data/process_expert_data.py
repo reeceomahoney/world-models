@@ -26,9 +26,15 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-states, vel_cmd = read_bag('data', 'expert', ['state_estimator/anymal_state', 'joy_manager/twist'])
+states, vel_cmd, joint_target = read_bag('pos_error_cmds', 'expert',
+                           ['state_estimator/anymal_state', 'joy_manager/twist', 'joint_target'])
 states = states[::16].reset_index(drop=True)  # sample at 25Hz
-df = pd.concat([states, vel_cmd], axis=1)
+joint_target = joint_target[::16].reset_index(drop=True)  # sample at 25Hz
+df = pd.concat([states, vel_cmd, joint_target], axis=1)
+
+# make all arrays the same length
+length = min(len(states), len(joint_target), len(vel_cmd))
+df = df[:length - 106]  # robot fell over at the end of the bag file
 
 obs_dim = 48
 obs = np.zeros((len(df), obs_dim))
@@ -49,7 +55,7 @@ for idx, row in df.iterrows():
     obs[idx, 21:33] = ast.literal_eval(row['joints.velocity'])  # joint velocities
     obs[idx, 33:36] = [row['twist.linear.x'], row['twist.linear.y'], row['twist.angular.z']]  # velocity command
 
-    obs[idx, 36:] = ast.literal_eval(row['joints.effort'])  # joint efforts
+    obs[idx, 36:] = np.array([row['data_' + str(i)] for i in range(12)])  # joint targets
 
 # save to file
-np.save('data/expert', obs)
+np.save('pos_error_cmds/expert', obs)

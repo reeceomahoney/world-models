@@ -82,11 +82,10 @@ class Logger:
         eval_driver.turn_off_visualization() if self.config.env_name == 'raisim' else eval_driver.close()
 
     def _update_eval_info(self, obs, reward, done, preds):
-        preds = [p.detach().cpu().numpy() for p in preds]
         n = self.config.eval_eps * self.config.eval_steps
-        self.eval_info['obs_error'] += np.mean(np.square(preds[0] - obs)) / n
-        self.eval_info['reward_error'] += np.mean(np.square(preds[1] - reward)) / n
-        self.eval_info['gamma_error'] += np.mean(np.square(preds[2] - (1 - done))) / n
+        self.eval_info['obs_error'] += torch.norm(preds[0] - obs) / n
+        self.eval_info['reward_error'] += torch.norm(preds[1] - reward) / n
+        self.eval_info['cont_error'] += torch.norm(preds[2] - (1 - done)) / n
         self.eval_info['eval_reward'] += reward.mean() / n
 
     def _write(self, info, step, eval_step):

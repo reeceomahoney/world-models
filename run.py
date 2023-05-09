@@ -5,8 +5,8 @@ from collections import OrderedDict
 
 import torch
 
-import common as common
-from agent import Agent
+import world_models.common as common
+from world_models.agent import Agent
 
 # paths
 home_path = os.path.dirname(os.path.realpath(__file__))
@@ -14,12 +14,13 @@ home_path = os.path.dirname(os.path.realpath(__file__))
 # parse args
 parser = argparse.ArgumentParser()
 parser.add_argument('--env', type=str, default='raisim')
+parser.add_argument('--ditto', type=str, default=False)
 parser.add_argument('--logdir', type=str, default=None)
 parser.add_argument('--agent', type=str, default=None)
 args = parser.parse_args()
 
-log_dir = f'{home_path}/logs/{args.env}/{args.logdir}'
-config, config_dict = common.init_config(log_dir + '/config.yaml', args.env)
+log_dir = f'{home_path}/world_models/logs/{args.env}/{args.logdir}'
+config, config_dict = common.init_config(log_dir + '/config.yaml', args)
 
 if config.env_name == 'raisim':
     env_driver = common.RaisimDriver(config, config_dict)
@@ -38,8 +39,7 @@ agent.load_state_dict(agent_state_dict, strict=False)
 
 obs, h_t, action = env_driver.reset()
 for _ in range(config.eval_eps):
-    print("foo")
-    for step in range(config.eval_steps):
+    for step in range(2*config.eval_steps):
         start = time.time()
         obs, reward, done = env_driver(action)
         h_t, action = agent(h_t, obs)

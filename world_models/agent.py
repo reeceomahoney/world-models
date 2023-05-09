@@ -3,8 +3,6 @@ import torch.distributions as D
 
 import world_models.common as common
 
-to_np = lambda x: x.detach().cpu().numpy()
-
 
 class Agent(torch.nn.Module):
     def __init__(self, obs_dim, act_dim, act_range, config):
@@ -66,8 +64,8 @@ class Agent(torch.nn.Module):
         with torch.no_grad():
             h_t1, action = self(h_t, obs)
             z_t1 = self.world_model.dynamics(h_t1)
-            obs_1, reward_1, gamma_1 = self.world_model.predict(torch.cat((h_t1, z_t1), dim=-1))
-        return (obs_1, reward_1, gamma_1), h_t1, action
+            obs_1, reward_1, cont_1 = self.world_model.predict(torch.cat((h_t1, z_t1), dim=-1))
+        return (obs_1, reward_1, cont_1), h_t1, action
 
     # --------------------------------------------------------------------------------------------------------------
     # Training

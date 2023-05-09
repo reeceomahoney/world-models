@@ -2,8 +2,8 @@ default:
   # Environment
   num_envs: 1
   steps: 1e8
-  replay_size: 1e6
-  time_limit: 1000
+  replay_size: 1000
+  time_limit: 100
   batch_length: 64
   batch_size: 16
   train_ratio: 512
@@ -50,7 +50,7 @@ default:
   init_deter: 'zero'
 
   # Exploration
-  Plan2Explore: True
+  Plan2Explore: False
   explore_steps: 1e8
   explore_coeff: 500
   init_std: 1
@@ -89,17 +89,3 @@ ditto:
   ditto_il_steps: 1e8
   ditto_batch_size: 512
   ditto_batch_length: 50
-
-debug:
-  num_envs: 1
-  prefill: 300
-  pretrain: 4
-  log_every: 10
-  eval_every: 200
-  time_limit: 1000
-  eval_eps: 2
-  eval_steps: 150
-  device: 'cuda'
-  rick: False
-  ditto_wm_steps: 10
-  ditto_wm_eval_every: 0

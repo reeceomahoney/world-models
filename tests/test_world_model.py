@@ -1,7 +1,7 @@
 import unittest
 
 
-class TestModels(unittest.TestCase):
+class TestRSSM(unittest.TestCase):
     def test_foo(self):
         self.assertEqual(1, 1)
 

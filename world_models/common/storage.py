@@ -38,8 +38,7 @@ class ReplayBuffer:
         self.episodes = [{k: v[i] for k, v in data.items()} for i in range(size(data))]
 
     def add_episode(self):
-        # only add episode if we have enough steps
-        if size(self.current_episode) > self.chunk_length:
+        if size(self.current_episode) >= self.chunk_length:
             for env in range(self.num_envs):
                 self.episodes.append({k: v[:, env] for k, v in self.current_episode.items()})
         self.clear_current_episode()
@@ -55,7 +54,7 @@ class ReplayBuffer:
         all_eps = self._get_all_eps(chunk_length)
 
         eps = random.choices(all_eps, k=batch)
-        start = np.random.randint([size(ep) - chunk_length for ep in eps], size=batch)
+        start = np.random.randint([size(ep) - chunk_length + 1 for ep in eps], size=batch)
         end = start + chunk_length
         samples = {k: [ep[k][s:e] for ep, s, e in zip(eps, start, end)] for k in self.dims.keys()}
         return {k: torch.stack(v).swapaxes(0, 1) for k, v in samples.items()}
@@ -71,7 +70,7 @@ class ReplayBuffer:
             self.episodes.pop(0)
 
     def _get_all_eps(self, chunk_length):
-        # Append current steps to episodes if we have enough
+        # append current episode if its long enough
         all_eps = []
         if size(self.current_episode) >= chunk_length:
             for env in range(self.num_envs):

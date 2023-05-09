@@ -18,7 +18,7 @@ def main(config, env_driver, agent, replay, state_replay, logger):
             timer = common.Timer(config.control_dt, sleep=True)
             env_driver.turn_on_visualization()
             for _ in range(10):
-                h_t = env_driver.reset()[1]
+                env_driver.reset()
                 data = state_replay.sample(1, config.imag_horizon + 1)
                 for i in range(next(iter(data.values())).shape[0]):
                     timer.start()
@@ -33,7 +33,6 @@ def main(config, env_driver, agent, replay, state_replay, logger):
 
     # imitation learning
     print('\nimitation learning...')
-    config.log_every = 1e3
     should_log = common.Every(config.log_every)
     should_eval = common.Every(config.eval_every)
     for step in range(int(config.ditto_il_steps)):

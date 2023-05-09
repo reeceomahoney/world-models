@@ -32,21 +32,22 @@ print(f'using device: {config.device}')
 obs_dim, act_dim = env_driver.env_info()[:2]
 agent = Agent(*env_driver.env_info(), config)
 if args.agent is not None:
-    agent_state_dict = torch.load(home_path + args.agent, map_location=config.device)
+    agent_state_dict = torch.load(home_path + '/' + args.agent, map_location=config.device)
     agent.load_state_dict(agent_state_dict)
 
 # replay buffer
+state_replay = None
 if args.replay is None:
     if args.ditto:
         replay = common.ReplayBuffer(config, {'obs': obs_dim, 'action': act_dim})
         state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim})
         expert_data = common.load_expert_data(
-            home_path + '/world_models/expert_data/data/expert.npy', obs_dim, config.device)
+            home_path + '/world_models/expert_data/pos_error_cmds/expert.npy', obs_dim, config.device)
         replay.store_all(expert_data)
     else:
         replay = common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})
 else:
-    with open(home_path + args.replay, 'rb') as handle:
+    with open(home_path + '/' + args.replay, 'rb') as handle:
         replay = pickle.load(handle)
 logger = common.Logger(config, agent, env_driver, replay)
 
@@ -55,8 +56,8 @@ if not args.ditto:
 else:
     ditto.main(config, env_driver, agent, replay, state_replay, logger)
 
-
-# TODO: refactor this into a top level script that calls either dreamer.py or ditto.py
+# TODO: do p2e run w/o rewards and check speed up (w/ reward is ~183s / 1000 steps)
+# TODO: do p2e run w/ velocity noise
 # TODO: add vision
 # TODO: plot latent space variance
-# TODO: optimise imports
+# TODO: write model and world model tests

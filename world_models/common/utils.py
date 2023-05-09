@@ -63,7 +63,7 @@ class Timer:
 
     def end(self):
         delta = time.time() - self._start
-        if delta < self._real_delta and self._sleep:
+        if (delta < self._real_delta) and self._sleep:
             time.sleep(self._real_delta - delta)
 
 
@@ -111,7 +111,7 @@ def init_config(config_path, args):
             config_dict[key] = value
 
     # debug mode
-    if hasattr(sys, 'gettrace') and sys.gettrace() is not None:
+    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and hasattr(full_config_dict, 'debug'):
         print('debug mode')
         for key, value in full_config_dict['debug'].items():
             config_dict[key] = value
@@ -144,5 +144,7 @@ def symexp(x):
 
 def load_expert_data(path, obs_dim, device):
     expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
-    return {'obs': expert_data[:, :obs_dim], 'action': expert_data[:, obs_dim:]}
+    obs = symlog(expert_data[:, :obs_dim])
+    action = expert_data[:, obs_dim:]
+    return {'obs': obs, 'action': action}
 

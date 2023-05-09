@@ -70,8 +70,8 @@ class ENVIRONMENT : public RaisimGymEnv {
 
 
     /// nominal configuration
-    gc_init_ << 0, 0, 0.55, 1.0, 0.0, 0.0, 0.0, 0.0, 0.4, -0.8, 0.0, 0.4, -0.8,
-        0.0, -0.4, 0.8, 0.0, -0.4, 0.8;
+    gc_init_ << 0., 0., 0.525, 1.0, 0., 0., 0.,
+        -0.089, 0.712, -1.03, 0.089, 0.712, -1.03, -0.089, -0.712, 1.03, 0.089, -0.712, 1.03;
     jointTarget_ = gc_init_.tail(nJoints_);
 
     /// variances for initial state samples
@@ -82,7 +82,7 @@ class ENVIRONMENT : public RaisimGymEnv {
 
     /// action scaling
     actionMean_ = gc_init_.tail(nJoints_);
-    actionStd_.setConstant(0.5);
+    actionStd_.setConstant(1);
 
     /// Reward coefficients
     rewards_.initializeFromConfigurationFile (cfg["reward"]);
