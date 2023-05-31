@@ -14,6 +14,7 @@
 #include "RaisimGymEnv.hpp"
 
 #include "actuation_dynamics_inference/Actuation.hpp"
+#include "Visualization.hpp"
 
 
 double logisticKernel(double x) {
@@ -30,7 +31,8 @@ class ENVIRONMENT : public RaisimGymEnv {
       RaisimGymEnv(resourceDir, cfg),
       actuation_(resourceDir_ + "/anymal/parameters/coyote", Eigen::Vector2d{1., 0.1}, 100., 12), 
       visualizable_(visualizable), 
-      normDist_(0, 1), uniformDist_(-1,1) {
+      normDist_(0, 1), uniformDist_(-1,1),
+      visualizationHandler_(visualizable_) {
 
     /// create world
     world_ = std::make_unique<raisim::World>();
@@ -70,8 +72,9 @@ class ENVIRONMENT : public RaisimGymEnv {
 
 
     /// nominal configuration
-    gc_init_ << 0., 0., 0.525, 1.0, 0., 0., 0.,
-        -0.089, 0.712, -1.03, 0.089, 0.712, -1.03, -0.089, -0.712, 1.03, 0.089, -0.712, 1.03;
+    gc_init_ << 0., 0., 0.55, 1.0, 0., 0., 0.,
+            -0.138589, 0.480936, -0.761428, 0.138589, 0.480936, -0.761428,
+            -0.138589, -0.480936, 0.761428, 0.138589, -0.480936, 0.761428;
     jointTarget_ = gc_init_.tail(nJoints_);
 
     /// variances for initial state samples
@@ -81,7 +84,7 @@ class ENVIRONMENT : public RaisimGymEnv {
         2, 2, 2;
 
     /// action scaling
-    actionMean_ = gc_init_.tail(nJoints_);
+    actionMean_.setConstant(0);
     actionStd_.setConstant(1);
 
     /// Reward coefficients
@@ -98,13 +101,14 @@ class ENVIRONMENT : public RaisimGymEnv {
       server_ = std::make_unique<raisim::RaisimServer>(world_.get());
       server_->launchServer(8086);
       server_->focusOn(anymal_);
+      visualizationHandler_.setServer(server_);
     }
 
-    Eigen::VectorXd pGains = Eigen::VectorXd::Zero(18);
-    Eigen::VectorXd dGains = Eigen::VectorXd::Zero(18);
-    pGains.tail(12) = 80 * Eigen::VectorXd::Ones(12);
-    dGains.tail(12) = 5 * Eigen::VectorXd::Ones(12);
-    anymal_->setPdGains(pGains, dGains);
+//    Eigen::VectorXd pGains = Eigen::VectorXd::Zero(18);
+//    Eigen::VectorXd dGains = Eigen::VectorXd::Zero(18);
+//    pGains.tail(12) = 85 * Eigen::VectorXd::Ones(12);
+//    dGains.tail(12) = 0.6 * Eigen::VectorXd::Ones(12);
+//    anymal_->setPdGains(pGains, dGains);
   }
 
   void init() final { }
@@ -124,8 +128,6 @@ class ENVIRONMENT : public RaisimGymEnv {
   float step(const Eigen::Ref<EigenVec>& action) final {
     /// action scaling
     jointTarget_ = action.cast<double>();
-    jointTarget_ = jointTarget_.cwiseProduct(actionStd_);
-    jointTarget_ += actionMean_;
 
     for(int i=0; i< int(control_dt_ / simulation_dt_ + 1e-10); i++){
         if(server_) server_->lockVisualizationServerMutex();
@@ -139,6 +141,11 @@ class ENVIRONMENT : public RaisimGymEnv {
 
         world_->integrate();
         updateObservation();
+
+        if (visualizable_) {
+            server_->focusOn(anymal_);
+            visualizationHandler_.updateVelocityVisual(anymal_, desiredVel_, server_);
+        }
 
         if(server_) server_->unlockVisualizationServerMutex();
     }
@@ -154,11 +161,17 @@ class ENVIRONMENT : public RaisimGymEnv {
 
     /// generate commands
     if (int(100*timeSinceReset_) % 200 <= 1) {
-        desiredVel_[0] = maxDesiredVel_[0] * uniformDist_(gen_);
-        desiredVel_[1] = maxDesiredVel_[1] * uniformDist_(gen_);
-        desiredVel_[2] = maxDesiredVel_[2] * uniformDist_(gen_);
+        if (uniformDist_(gen_) < 0.1) {
+            // generate zero command 10% of the time
+            desiredVel_.setZero();
+        } else {
+            // scaling from onphase config
+            desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
+            desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
+            desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
+        }
     }
-
+//    desiredVel_ << 1., 0, -0.3125;
     timeSinceReset_ += control_dt_;
 
     return rewards_.sum();
@@ -222,7 +235,6 @@ class ENVIRONMENT : public RaisimGymEnv {
   }
 
   void setTarget(const Eigen::Ref<EigenVec>& decodedObs) {
-      Eigen::VectorXd pTarget(18);
       raisim::Vec<3> euler;
       raisim::Vec<4> quat;
       Eigen::VectorXd obs = decodedObs.cast<double>();
@@ -232,7 +244,7 @@ class ENVIRONMENT : public RaisimGymEnv {
       euler[2] = obs[2];
       raisim::eulerVecToQuat(euler, quat);
 
-      pTarget_[2] = 0.55;
+      pTarget_[2] = 0.65;
       pTarget_.segment(3, 4) = quat.e();
       pTarget_.segment(7, 12) = obs.segment(3, 12);
       vTarget_.segment(0, 3) = obs.segment(15, 3);
@@ -271,8 +283,11 @@ class ENVIRONMENT : public RaisimGymEnv {
   double timeSinceReset_, terminalRewardCoeff_;
   Actuation actuation_;
 
-  std::normal_distribution<double> normDist_; std::uniform_real_distribution<double> uniformDist_;
+  std::normal_distribution<double> normDist_;
+  std::uniform_real_distribution<double> uniformDist_;
   thread_local static std::mt19937 gen_;
+
+  VisualizationHandler visualizationHandler_;
 };
 thread_local std::mt19937 raisim::ENVIRONMENT::gen_;
 

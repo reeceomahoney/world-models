@@ -20,6 +20,8 @@ class Agent(torch.nn.Module):
         self.expl_critic = common.TwoHotSymlogMLP(config)
         self.expl_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
 
+        self.act_dim = act_dim
+        self.act_range = act_range
         self.task_actor = common.Actor(act_dim, act_range, config)
         self.task_critic = common.TwoHotSymlogMLP(config)
         self.task_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
@@ -39,7 +41,7 @@ class Agent(torch.nn.Module):
 
         self._updates = 0
         self.actor, self.actor_optim = None, None
-        self.critic, self.critic_optim = None, None
+        self.critic, self.slow_critic, self.critic_optim = None, None, None
 
         # ditto
         self.all_expert_states, self.expert_states = None, None
@@ -47,7 +49,7 @@ class Agent(torch.nn.Module):
         # utility
         self.reward_ema = common.RewardEMA(config.device)
         self.device = config.device
-        self._set_actor_critic()
+        self.set_actor_critic()
 
     # --------------------------------------------------------------------------------------------------------------
     # Environment interaction
@@ -74,14 +76,15 @@ class Agent(torch.nn.Module):
         if self.config.Plan2Explore and step >= self.config.explore_steps:
             print('Ending Plan2Explore')
             self.config.Plan2Explore = False
-        self._set_actor_critic()
+        self.set_actor_critic()
+
         if should_train:
             data, states, rssm_info = self.train_world_model(replay)
             ensemble_info = self._train_ensemble(data, states) if self.config.Plan2Explore else {'ensemble_loss': 0}
 
             states = torch.flatten(states['state'], 0, 1).detach()
             ac_info = self._train_actor_critic(states)
-            return {**rssm_info, **ensemble_info, **ac_info, 'buffer_size': len(replay)}
+            return {**rssm_info, **ensemble_info, **ac_info}
         else:
             return {}
 
@@ -90,7 +93,7 @@ class Agent(torch.nn.Module):
         states = self._compute_latent_states(replay, {'state': []})[1]
         states = torch.flatten(states['state'], 0, 1).detach()
         ac_info = self._train_actor_critic(states)
-        info = {'pred_loss': 0, 'kl_loss': 0, 'ensemble_loss': 0, 'buffer_size': len(replay)}  # dummy
+        info = {'pred_loss': 0, 'kl_loss': 0, 'ensemble_loss': 0}  # dummy
         return {**info, **ac_info}
 
     def ditto_step(self, replay):
@@ -183,14 +186,17 @@ class Agent(torch.nn.Module):
         act_t = self.actor(states_t).sample()
 
         # imagine rollouts
-        states, actions = [], []
+        states, actions, action_log_probs = [], [], []
         info = {'entropy': 0, 'act_size': 0, 'act_std': 0}
         for _ in range(self.config.imag_horizon):
             states_t = self.world_model.step(states_t, act_t)
             actor = self.actor(states_t)
             act_t = actor.sample()
+            log_prob = actor.log_prob(act_t.detach())
+
             states.append(states_t)
             actions.append(act_t)
+            action_log_probs.append(log_prob)
 
             info['entropy'] += actor.entropy().mean() / self.config.imag_horizon
             info['act_size'] += act_t.square().mean() / self.config.imag_horizon
@@ -198,6 +204,7 @@ class Agent(torch.nn.Module):
 
         states = torch.stack(states, dim=0)
         actions = torch.stack(actions, dim=0)
+        action_log_probs = torch.stack(action_log_probs, dim=0).unsqueeze(-1)
 
         # calculate rewards
         if self.config.Plan2Explore:
@@ -206,12 +213,13 @@ class Agent(torch.nn.Module):
             rewards = self._calculate_ditto_rewards(states)
         else:
             rewards = self.world_model.reward(states)
-        gammas = self.config.gamma * self.world_model.cont(states)
+        # gammas = self.config.gamma * self.world_model.cont(states)
+        gammas = self.config.gamma * torch.ones_like(rewards)
         weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
 
         # calculate value targets
         policy_loss, entropy_loss, value_targets = self._calculate_policy_loss(
-            states, rewards, gammas, weights, info['entropy'])
+            states, action_log_probs, rewards, gammas, weights, info['entropy'])
         value_loss, values = self._calculate_value_loss(states, value_targets, weights)
         loss = policy_loss + value_loss - entropy_loss
 
@@ -235,7 +243,7 @@ class Agent(torch.nn.Module):
                 'reward_ema': {'05': self.reward_ema.values[0], '95': self.reward_ema.values[1]},
                 **info}
 
-    def _calculate_policy_loss(self, states, rewards, gammas, weights, entropy):
+    def _calculate_policy_loss(self, states, action_log_probs, rewards, gammas, weights, entropy):
         self.critic.requires_grad_(False)
 
         value_targets = []
@@ -253,7 +261,14 @@ class Agent(torch.nn.Module):
         norm_base = (values[:-1] - offset) / scale
         adv = norm_targets - norm_base
 
-        policy_loss = -(weights[:-1] * adv).mean()
+        if self.config.policy_gradient == 'dynamics':
+            actor_target = adv
+        elif self.config.policy_gradient == 'reinforce':
+            actor_target = action_log_probs[:-1] * adv.detach()
+        else:
+            raise NotImplementedError(f'Unknown policy gradient: {self.config.policy_gradient}')
+
+        policy_loss = -(weights[:-1] * actor_target).mean()
         entropy_loss = self.config.entropy_coeff * entropy
 
         self.critic.requires_grad_(True)
@@ -287,13 +302,7 @@ class Agent(torch.nn.Module):
     # --------------------------------------------------------------------------------------------------------------
     # Utility
 
-    def _init_deter(self, size):
-        if self.config.init_deter == 'zero':
-            return torch.zeros((size, self.h_dim)).to(self.device)
-        elif self.config.init_deter == 'normal':
-            return 0.01 * torch.randn((size, self.h_dim)).to(self.device)
-
-    def _set_actor_critic(self):
+    def set_actor_critic(self):
         if self.config.Plan2Explore:
             self.actor = self.expl_actor
             self.critic = self.expl_critic
@@ -306,3 +315,9 @@ class Agent(torch.nn.Module):
             self.slow_critic = self.task_slow_critic
             self.actor_optim = self.task_actor_optim
             self.critic_optim = self.task_critic_optim
+
+    def _init_deter(self, size):
+        if self.config.init_deter == 'zero':
+            return torch.zeros((size, self.h_dim)).to(self.device)
+        elif self.config.init_deter == 'normal':
+            return 0.01 * torch.randn((size, self.h_dim)).to(self.device)

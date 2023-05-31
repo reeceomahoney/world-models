@@ -1,9 +1,16 @@
+import random
+
 from tqdm import tqdm
 
 import world_models.common as common
 
 
 def main(config, env_driver, agent, replay, logger):
+    if len(replay) == 1:
+        replay = replay[0]
+    else:
+        replay, expert_replay = replay
+
     if not config.zero_shot:
         print('prefilling buffer...')
         pbar = tqdm(total=config.prefill)
@@ -11,7 +18,11 @@ def main(config, env_driver, agent, replay, logger):
         while len(replay) < config.prefill:
             obs, reward, done = env_driver(action)
             h_t, action = agent(h_t, obs)
-            replay.store({'obs': obs, 'reward': reward, 'cont': 1 - done, 'action': action})
+            data = {'obs': obs, 'cont': 1 - done, 'action': action}
+            if 'reward' in replay.dims:
+                data['reward'] = reward
+            replay.store(data)
+
             if done.any() or env_driver.step >= config.time_limit:
                 replay.add_episode()
                 obs, h_t, action = env_driver.reset()
@@ -23,7 +34,11 @@ def main(config, env_driver, agent, replay, logger):
         print('\npretraining...')
         pbar = tqdm(total=config.pretrain)
         for step in range(config.pretrain):
-            agent.train_step(step, replay, True)
+            if 'expert_replay' in locals() and random.random() < config.expert_replay_ratio:
+                sample_replay = expert_replay
+            else:
+                sample_replay = replay
+            agent.train_step(step, sample_replay, True)
             pbar.update(1)
         pbar.close()
 
@@ -36,9 +51,17 @@ def main(config, env_driver, agent, replay, logger):
         for step in range(int(config.steps)):
             obs, reward, done = env_driver(action)
             h_t, action = agent(h_t, obs)
-            replay.store({'obs': obs, 'reward': reward, 'cont': 1 - done, 'action': action})
+            data = {'obs': obs, 'cont': 1 - done, 'action': action}
+            if 'reward' in replay.dims:
+                data['reward'] = reward
+            replay.store(data)
 
-            info = agent.train_step(step, replay, should_train(step))
+            if 'expert_replay' in locals() and random.random() < config.expert_replay_ratio:
+                sample_replay = expert_replay
+            else:
+                sample_replay = replay
+            info = agent.train_step(step, sample_replay, should_train(step))
+            info['buffer_size'] = len(replay)
             logger.log(info, step, should_log(step), should_eval(step))
 
             if done.any() or env_driver.step >= config.time_limit:

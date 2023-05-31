@@ -54,7 +54,7 @@ class Logger:
 
     def _eval(self, step):
         print('evaluating...')
-        self.eval_info = {'obs_error': 0, 'reward_error': 0, 'gamma_error': 0, 'eval_reward': 0}
+        self.eval_info = {'obs_error': 0, 'reward_error': 0, 'cont_error': 0, 'eval_reward': 0}
         if self.config.env_name == 'raisim':
             eval_driver = self.env_driver
             eval_driver.turn_on_visualization()
@@ -106,7 +106,7 @@ class Logger:
         if 'reward_ema' in info:
             self.writer.add_scalars('imag/reward_ema', info['reward_ema'], step)
 
-        if self.config.env_name == 'raisim':
+        if self.config.env_name == 'raisim' and sum(self.reward_info['linVel']) > 0:  # heuristic
             for k in self.reward_info.keys():
                 self.reward_mean[k] = np.mean(np.array(self.reward_info[k]))
                 self.reward_std[k] = np.std(np.array(self.reward_info[k]))
@@ -114,7 +114,7 @@ class Logger:
             self.writer.add_scalars('rewards/std', self.reward_std, step)
 
         # misc
-        for name in ['act_std', 'buffer_size', 'act_size', 'entropy']:
+        for name in ['act_std', 'buffer_size', 'act_size']:
             self._write_scalar(name, 'misc', info, step)
 
     def _write_scalar(self, name, section, info, step):

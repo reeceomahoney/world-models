@@ -19,6 +19,7 @@ default:
   real_time_eval: False
   zero_shot: False
   save_datasets: False
+  expert_replay_ratio: 0.1
 
   # Model
   h_dim: 512
@@ -48,9 +49,10 @@ default:
   init_zero: False
   unimix_ratio: 0.01
   init_deter: 'zero'
+  policy_gradient: 'reinforce'
 
   # Exploration
-  Plan2Explore: True
+  Plan2Explore: False
   explore_steps: 1e8
   explore_coeff: 500
   init_std: 1
@@ -62,6 +64,8 @@ raisim:
   action_repeat: 1
   log_every: 1e3
   eval_every: 2e4
+#  log_every: 5e2
+#  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -85,7 +89,7 @@ raisim:
 
 ditto:
   ditto_wm_steps: 0
-  ditto_wm_eval_every: 0
+  ditto_wm_eval_every: 2e4
   ditto_il_steps: 1e8
   ditto_batch_size: 512
   ditto_batch_length: 50
@@ -102,4 +106,4 @@ debug:
   device: 'cuda'
   rick: False
   ditto_wm_steps: 10
-  ditto_wm_eval_every: 0
+  ditto_wm_eval_every: 10

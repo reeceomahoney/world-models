@@ -111,7 +111,7 @@ def init_config(config_path, args):
             config_dict[key] = value
 
     # debug mode
-    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and hasattr(full_config_dict, 'debug'):
+    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and 'debug' in full_config_dict:
         print('debug mode')
         for key, value in full_config_dict['debug'].items():
             config_dict[key] = value
@@ -146,5 +146,6 @@ def load_expert_data(path, obs_dim, device):
     expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
     obs = symlog(expert_data[:, :obs_dim])
     action = expert_data[:, obs_dim:]
-    return {'obs': obs, 'action': action}
+    cont = torch.ones((action.shape[0], 1)).to(device)
+    return {'obs': obs, 'cont': cont, 'action': action}
 

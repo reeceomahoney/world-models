@@ -9,7 +9,7 @@ import world_models.common as common
 from world_models.agent import Agent
 
 
-def setup(ditto=False):
+def setup(ditto=False, small_model=False):
     args = argparse.ArgumentParser()
     args.env = 'raisim'
     args.ditto = ditto
@@ -17,6 +17,10 @@ def setup(ditto=False):
     current_dir = os.path.dirname(os.path.realpath(__file__))
     config = common.init_config(current_dir + '/config.yaml', args)[0]
     obs_dim, act_dim = 36, 12
+    if small_model:
+        config.h_dim = 10
+        config.layer = [10, 10]
+        config.ensemble_size = 2
     agent = Agent(obs_dim, act_dim, 1, config)
     replay = common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})
     return config, agent, replay, obs_dim, act_dim

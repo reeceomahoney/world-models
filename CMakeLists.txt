@@ -27,7 +27,8 @@ include_directories(
         ${EIGEN3_INCLUDE_DIRS}
         world_models/raisim_gym/dependencies/actuation_dynamics_inference/include
         world_models/raisim_gym/dependencies/networks_minimal/include
-        world_models/raisim_gym/raisim_gym)
+        world_models/raisim_gym/raisim_gym
+        world_models/raisim_gym/helpers)
 
 #######################
 ### src and linking ###
