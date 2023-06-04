@@ -64,6 +64,19 @@ class TestTrainer(unittest.TestCase):
         info = agent.ditto_step(state_replay)
         self.assertEqual('policy_loss' in info, True)
 
+    def test_max(self):
+        foo = torch.randn(10, 10)
+        bar = torch.randn(10, 10)
+
+        expert_norm = torch.norm(foo, dim=-1, keepdim=True)
+        agent_norm = torch.norm(bar, dim=-1, keepdim=True)
+        norms = torch.cat((expert_norm, agent_norm), dim=-1)
+        max_norm_1 = torch.max(norms, dim=-1)[0]
+
+        max_norm_2 = torch.maximum(torch.norm(foo, dim=-1), torch.norm(bar, dim=-1))
+
+        self.assertEqual(torch.allclose(max_norm_1, max_norm_2), True)
+
 
 if __name__ == '__main__':
     unittest.main()

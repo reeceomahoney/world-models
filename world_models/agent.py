@@ -101,7 +101,7 @@ class Agent(torch.nn.Module):
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
-        return self._compute_latent_states(replay, {'state': []}, expert=True)
+        return self._compute_latent_states(replay, {'state': []}, sample_all=True)
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
@@ -130,8 +130,8 @@ class Agent(torch.nn.Module):
         info = {'pred_loss': pred_loss.item(), 'kl_loss': (dyn_loss + repr_loss).item()}
         return data, states, info
 
-    def _compute_latent_states(self, replay, states, expert=False):
-        if expert:
+    def _compute_latent_states(self, replay, states, sample_all=False):
+        if sample_all:
             batch_length = self.config.ditto_batch_length
             data = replay.sample_all(batch_length)
             h_t = self._init_deter(len(data['obs'][1]))
@@ -295,8 +295,9 @@ class Agent(torch.nn.Module):
 
     def _calculate_ditto_rewards(self, states):
         # dot product
-        reward = torch.sum(self.expert_states[1:] * states, dim=-1)
-        reward /= (torch.maximum(torch.norm(self.expert_states[1:], dim=-1), torch.norm(states, dim=-1)) ** 2)
+        reward = torch.sum(self.expert_states[1:, :, :self.config.h_dim] * states[..., :self.config.h_dim], dim=-1)
+        reward /= (torch.maximum(torch.norm(self.expert_states[1:, :, :self.config.h_dim], dim=-1),
+                                 torch.norm(states[..., :self.config.h_dim], dim=-1)) ** 2)
         return reward.unsqueeze(-1)
 
     # --------------------------------------------------------------------------------------------------------------
@@ -321,3 +322,5 @@ class Agent(torch.nn.Module):
             return torch.zeros((size, self.h_dim)).to(self.device)
         elif self.config.init_deter == 'normal':
             return 0.01 * torch.randn((size, self.h_dim)).to(self.device)
+        else:
+            raise NotImplementedError(f'Unknown init_deter: {self.config.init_deter}')

@@ -23,7 +23,7 @@ args = parser.parse_args()
 # paths
 home_path = Path(__file__).parent.absolute()
 config_path = home_path / 'world_models/config.yaml'
-expert_path = home_path / 'world_models/expert_data/onphase/expert.npy'
+expert_path = home_path / 'world_models/expert_data/onphase_fwd/expert.npy'
 
 # config and env
 config, config_dict = common.init_config(config_path, args)

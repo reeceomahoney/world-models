@@ -151,27 +151,27 @@ class ENVIRONMENT : public RaisimGymEnv {
     }
 
     /// record rewards
-    auto linVelDesired = Eigen::Vector3d{desiredVel_[0], desiredVel_[1], 0.};
-    auto angVelDesired = Eigen::Vector3d{0., 0., desiredVel_[2]};
-
-    rewards_.record("linVel", logisticKernel(4*(bodyLinearVel_ - linVelDesired).squaredNorm()));
-    rewards_.record("angVel", logisticKernel(4*(bodyAngularVel_[2] - angVelDesired[2])));
-    rewards_.record("torque", anymal_->getGeneralizedForce().squaredNorm());
-    rewards_.record("jointSpeed", gv_.tail(nJoints_).squaredNorm());
+//    auto linVelDesired = Eigen::Vector3d{desiredVel_[0], desiredVel_[1], 0.};
+//    auto angVelDesired = Eigen::Vector3d{0., 0., desiredVel_[2]};
+//
+//    rewards_.record("linVel", logisticKernel(4*(bodyLinearVel_ - linVelDesired).squaredNorm()));
+//    rewards_.record("angVel", logisticKernel(4*(bodyAngularVel_[2] - angVelDesired[2])));
+//    rewards_.record("torque", anymal_->getGeneralizedForce().squaredNorm());
+//    rewards_.record("jointSpeed", gv_.tail(nJoints_).squaredNorm());
 
     /// generate commands
-    if (int(100*timeSinceReset_) % 200 <= 1) {
-        if (uniformDist_(gen_) < 0.1) {
-            // generate zero command 10% of the time
-            desiredVel_.setZero();
-        } else {
-            // scaling from onphase config
-            desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
-            desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
-            desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
-        }
-    }
-//    desiredVel_ << 1., 0, -0.3125;
+//    if (int(100*timeSinceReset_) % 200 <= 1) {
+//        if (uniformDist_(gen_) < 0.1) {
+//            // generate zero command 10% of the time
+//            desiredVel_.setZero();
+//        } else {
+//            // scaling from onphase config
+//            desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
+//            desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
+//            desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
+//        }
+//    }
+    desiredVel_ << 1., 0, -0.3125;
     timeSinceReset_ += control_dt_;
 
     return rewards_.sum();

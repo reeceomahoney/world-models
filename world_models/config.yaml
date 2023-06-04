@@ -26,7 +26,7 @@ default:
   z_dim: 1024
   layers: [512, 512]
   act: silu
-  ensemble_size: 5
+  ensemble_size: 1
 
   # Training
   model_lr: 1e-4
@@ -53,7 +53,7 @@ default:
 
   # Exploration
   Plan2Explore: False
-  explore_steps: 1e8
+  explore_steps: 1e6
   explore_coeff: 500
   init_std: 1
   max_std: 1
