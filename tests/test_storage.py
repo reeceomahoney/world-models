@@ -6,10 +6,10 @@ import torch
 from world_models import common
 
 
-def setup():
+def setup(ditto=False):
     args = argparse.ArgumentParser()
     args.env = 'raisim'
-    args.ditto = False
+    args.ditto = ditto
     config = common.init_config('config.yaml', args)[0]
     obs_dim, act_dim = 36, 12
     replay = common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})
@@ -51,6 +51,15 @@ class TestReplay(unittest.TestCase):
             self.assertEqual(data['action'].shape, (64, batch_size, act_dim))
 
             config.time_limit = config.batch_length  # for second pass
+
+    def test_expert_sampler(self):
+        config, _, obs_dim, act_dim = setup(ditto=True)
+        data = {'obs': torch.randn(1024, obs_dim).to(config.device),
+                'action': torch.randn(1024, act_dim).to(config.device)}
+        sampler = common.ExpertSampler(config, data)
+
+        for idx, sample in enumerate(sampler):
+            print(idx)
 
 
 if __name__ == '__main__':

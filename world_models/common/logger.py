@@ -58,7 +58,7 @@ class Logger:
         if self.config.env_name == 'raisim':
             eval_driver = self.env_driver
             eval_driver.turn_on_visualization()
-            self._replay.add_episode()
+            # self._replay.add_episode()
             timer = Timer(self.config.control_dt, self.config.real_time_eval)
         else:
             eval_driver = GymDriver(self.config, render=not self.config.ssh)

@@ -24,7 +24,7 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = 'onphase'
+data_dir = 'onphase_fwd'
 states = read_bag(data_dir, 'expert', ['state_and_action'])[0].to_numpy()[::16, 3:].astype(np.float32)
-states = states[:-(states.shape[0] % 50)]  # must be divisible by 50
+states = states[:-(states.shape[0] % 64)]  # must be divisible by 50
 np.save(data_dir + '/expert', states)

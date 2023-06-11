@@ -43,10 +43,9 @@ if args.agent is not None:
 if args.replay is None:
     if args.ditto:
         # ditto training
-        replay = common.ReplayBuffer(config, {'obs': obs_dim, 'action': act_dim})
         state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim})
         expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
-        replay.store_all(expert_data)
+        replay = common.ExpertSampler(config, expert_data)
         replays = (replay, state_replay)
     elif config.Plan2Explore and config.expert_replay_ratio > 0:
         # p2e training with expert data
@@ -68,4 +67,5 @@ if not args.ditto:
 else:
     ditto.main(config, env_driver, agent, replays, logger)
 
-# TODO: write model and world model tests
+# TODO: fix batch sampler to init at the correct hidden state
+# TODO: plot value func variance, gradient norms

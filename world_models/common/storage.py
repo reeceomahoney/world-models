@@ -77,3 +77,29 @@ class ReplayBuffer:
                 all_eps.append({k: v[:, env] for k, v in self.current_episode.items()})
         all_eps += self.episodes
         return all_eps
+
+
+class ExpertSampler:
+    """
+     Sequential sampler for the expert data.
+    """
+    def __init__(self, config, data):
+        assert size(data) % config.batch_length == 0, "Number of samples must be divisible by batch length"
+
+        self.data = {k: torch.split(v, config.batch_length, dim=0) for k, v in data.items()}
+        self.data_unsplit = data
+        self.n_samples = size(data) // config.batch_length
+        self.idx = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.idx >= self.n_samples:
+            self.idx = 0
+        sample = {k: v[self.idx] for k, v in self.data.items()}
+        self.idx += 1
+        return sample
+
+    def get_all(self):
+        return self.data_unsplit

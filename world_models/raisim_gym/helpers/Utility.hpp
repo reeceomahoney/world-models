@@ -51,5 +51,28 @@ inline Eigen::Matrix3d rpyToRotationMatrix(const Eigen::Vector3d &RPY) {
     return R;
 }
 
+using namespace Eigen;
+
+template<typename M>
+M load_csv (const std::string & path) {
+    /// https://stackoverflow.com/questions/34247057/how-to-read-csv-file-and-assign-to-eigen-matrix
+
+    std::ifstream indata;
+    indata.open(path);
+    std::string line;
+    std::vector<double> values;
+    uint rows = 0;
+    while (std::getline(indata, line)) {
+        std::stringstream lineStream(line);
+        std::string cell;
+        while (std::getline(lineStream, cell, ',')) {
+            values.push_back(std::stod(cell));
+        }
+        ++rows;
+    }
+    return Map<const Matrix<typename M::Scalar, M::RowsAtCompileTime, M::ColsAtCompileTime, RowMajor>>
+            (values.data(), rows, values.size()/rows);
+}
+
 
 #endif //WORLD_MODELS_UTILITY_HPP

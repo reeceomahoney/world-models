@@ -69,7 +69,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     timeSinceReset_ = 0;
     addVelNoise_ = cfg["add_velocity_noise"].template As<bool>();
     randInitState_ = cfg["random_initial_state"].template As<bool>();
-
+    expertInitState_ = cfg["expert_initial_state"].template As<bool>();
 
     /// nominal configuration
     gc_init_ << 0., 0., 0.55, 1.0, 0., 0., 0.,
@@ -96,6 +96,10 @@ class ENVIRONMENT : public RaisimGymEnv {
     maxDesiredVel_[1] = cfg["commands"]["latVelMax"].template As<double>();
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
 
+    /// load expert data
+    expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/onphase_fwd/init_data.csv");
+    datasetSize_ = expertDataset_.rows();
+
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(world_.get());
@@ -103,22 +107,20 @@ class ENVIRONMENT : public RaisimGymEnv {
       server_->focusOn(anymal_);
       visualizationHandler_.setServer(server_);
     }
-
-//    Eigen::VectorXd pGains = Eigen::VectorXd::Zero(18);
-//    Eigen::VectorXd dGains = Eigen::VectorXd::Zero(18);
-//    pGains.tail(12) = 85 * Eigen::VectorXd::Ones(12);
-//    dGains.tail(12) = 0.6 * Eigen::VectorXd::Ones(12);
-//    anymal_->setPdGains(pGains, dGains);
   }
 
   void init() final { }
 
   void reset() final {
-    if (randInitState_) {
-      sampleInitialState();
-      anymal_->setState(gc_rand_, gv_rand_);
+    if (expertInitState_) {
+        int row = (datasetSize_ - 1) * abs(uniformDist_(gen_));
+        Eigen::VectorXd state = expertDataset_.row(row);
+        anymal_->setState(state.segment(0, 19), state.segment(19, 18));
+    } else if (randInitState_) {
+        sampleInitialState();
+        anymal_->setState(gc_rand_, gv_rand_);
     } else {
-      anymal_->setState(gc_init_, gv_init_);
+        anymal_->setState(gc_init_, gv_init_);
     }
     actuation_.reset();
     timeSinceReset_ = 0.;
@@ -263,10 +265,11 @@ class ENVIRONMENT : public RaisimGymEnv {
   }
 
  private:
-  int gcDim_, gvDim_, nJoints_;
-  bool visualizable_ = false, addVelNoise_, randInitState_;
+  int gcDim_, gvDim_, nJoints_, datasetSize_;
+  bool visualizable_ = false, addVelNoise_, randInitState_, expertInitState_;
   raisim::ArticulatedSystem* anymal_;
   Eigen::VectorXd gc_, gv_;
+  Eigen::MatrixXd expertDataset_;
 
   Eigen::Matrix<double, 36, 1> obDouble_;
   Eigen::Matrix<double, 19, 1> gc_init_, gc_rand_, pos_var_;

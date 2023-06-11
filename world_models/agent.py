@@ -44,7 +44,7 @@ class Agent(torch.nn.Module):
         self.critic, self.slow_critic, self.critic_optim = None, None, None
 
         # ditto
-        self.all_expert_states, self.expert_states = None, None
+        self.expert_states, self.h_last = None, None
 
         # utility
         self.reward_ema = common.RewardEMA(config.device)
@@ -88,28 +88,25 @@ class Agent(torch.nn.Module):
         else:
             return {}
 
-    def train_step_zero_shot(self, replay):
-        self.world_model.requires_grad_(False)
-        states = self._compute_latent_states(replay, {'state': []})[1]
-        states = torch.flatten(states['state'], 0, 1).detach()
-        ac_info = self._train_actor_critic(states)
-        info = {'pred_loss': 0, 'kl_loss': 0, 'ensemble_loss': 0}  # dummy
-        return {**info, **ac_info}
-
     def ditto_step(self, replay):
         self.expert_states = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)['state'].detach()
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
-        return self._compute_latent_states(replay, {'state': []}, sample_all=True)
+        data = replay.get_all()
+        h_init = self._init_deter(1).squeeze(0)
+        return self._encode_data(data, h_init, {'state': []})[0]
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
 
     def train_world_model(self, replay):
         # (seq_length, batch_size, obs_dim)
-        states = {'state': [], 'post': [], 'prior': []}
-        data, states = self._compute_latent_states(replay, states)
+        data = next(replay)
+        h_init = self._init_deter(1).squeeze(0) if replay.idx == 1 else self.h_last
+
+        states, h_last = self._encode_data(data, h_init, {'state': [], 'post': [], 'prior': []})
+        self.h_last = h_last.detach()
 
         # kl divergences
         d = common.CategoricalDist
@@ -130,15 +127,9 @@ class Agent(torch.nn.Module):
         info = {'pred_loss': pred_loss.item(), 'kl_loss': (dyn_loss + repr_loss).item()}
         return data, states, info
 
-    def _compute_latent_states(self, replay, states, sample_all=False):
-        if sample_all:
-            batch_length = self.config.ditto_batch_length
-            data = replay.sample_all(batch_length)
-            h_t = self._init_deter(len(data['obs'][1]))
-        else:
-            batch_length = self.config.batch_length
-            data = replay.sample(self.config.batch_size)
-            h_t = self._init_deter(self.config.batch_size)
+    def _encode_data(self, data, h_init, states):
+        batch_length = data['obs'].shape[0]
+        h_t = h_init
 
         for t in range(batch_length):
             obs = data['obs'][t]
@@ -148,11 +139,11 @@ class Agent(torch.nn.Module):
             for k, v in latents.items():
                 if k in states:
                     states[k].append(v)
-
-            if t < self.config.batch_length - 1:
+            if t < batch_length - 1:
                 h_t = self.world_model.forward(h_t, z_t, data['action'][t])
+
         states = {k: torch.stack(v, dim=0) for k, v in states.items()}
-        return data, states
+        return states, h_t
 
     # --------------------------------------------------------------------------------------------------------------
     # Ensemble
@@ -215,7 +206,8 @@ class Agent(torch.nn.Module):
             rewards = self.world_model.reward(states)
         # gammas = self.config.gamma * self.world_model.cont(states)
         gammas = self.config.gamma * torch.ones_like(rewards)
-        weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
+        # weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
+        weights = torch.ones_like(gammas).detach()
 
         # calculate value targets
         policy_loss, entropy_loss, value_targets = self._calculate_policy_loss(

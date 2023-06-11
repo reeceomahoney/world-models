@@ -62,10 +62,10 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-  log_every: 1e3
-  eval_every: 2e4
-#  log_every: 5e2
-#  eval_every: 2e3
+#  log_every: 1e3
+#  eval_every: 2e4
+  log_every: 5e2
+  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -75,7 +75,8 @@ raisim:
   control_dt: 0.04
   add_velocity_noise: False
   action_clip: 1
-  random_init_state: True
+  random_init_state: False
+  expert_init_state: True
   reward:
     linVel: 0 #4
     angVel: 0 #2
@@ -92,7 +93,7 @@ ditto:
   ditto_wm_eval_every: 2e4
   ditto_il_steps: 1e8
   ditto_batch_size: 512
-  ditto_batch_length: 50
+  ditto_batch_length: 1500
 
 debug:
   num_envs: 1
@@ -105,5 +106,5 @@ debug:
   eval_steps: 150
   device: 'cuda'
   rick: False
-  ditto_wm_steps: 10
+  ditto_wm_steps: 30
   ditto_wm_eval_every: 10

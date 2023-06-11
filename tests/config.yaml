@@ -88,4 +88,4 @@ ditto:
   ditto_wm_eval_every: 0
   ditto_il_steps: 1e8
   ditto_batch_size: 512
-  ditto_batch_length: 50
+  ditto_batch_length: 64
