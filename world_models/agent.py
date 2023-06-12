@@ -89,13 +89,25 @@ class Agent(torch.nn.Module):
             return {}
 
     def ditto_step(self, replay):
-        self.expert_states = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)['state'].detach()
+        if self.config.ditto_state == 'logits':
+            expert_sample = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)
+            self.expert_states = torch.cat((expert_sample['state'][..., :self.config.h_dim],
+                                            expert_sample['post']), dim=-1).detach()
+        else:
+            self.expert_states = replay.sample(
+                self.config.ditto_batch_size, self.config.imag_horizon + 1)['state'].detach()
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
         data = replay.get_all()
         h_init = self._init_deter(1).squeeze(0)
-        return self._encode_data(data, h_init, {'state': []})[0]
+
+        if self.config.ditto_state == 'logits':
+            states = self._encode_data(data, h_init, {'state': [], 'post': []})[0]
+            states['state'] = torch.cat((states['state'][..., :self.config.h_dim], states['post']), dim=-1)
+            return states
+        else:
+            return self._encode_data(data, h_init, {'state': [], 'post': []})[0]
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
@@ -178,12 +190,17 @@ class Agent(torch.nn.Module):
 
         # imagine rollouts
         states, actions, action_log_probs = [], [], []
+        states_logits = []
         info = {'entropy': 0, 'act_size': 0, 'act_std': 0}
         for _ in range(self.config.imag_horizon):
             states_t = self.world_model.step(states_t, act_t)
             actor = self.actor(states_t)
             act_t = actor.sample()
             log_prob = actor.log_prob(act_t.detach())
+
+            # for ditto
+            states_logits_t = self.world_model.dynamics_logits(states_t[..., :self.config.h_dim])
+            states_logits.append(torch.cat((states_t[..., :self.config.h_dim], states_logits_t), dim=-1))
 
             states.append(states_t)
             actions.append(act_t)
@@ -197,13 +214,17 @@ class Agent(torch.nn.Module):
         actions = torch.stack(actions, dim=0)
         action_log_probs = torch.stack(action_log_probs, dim=0).unsqueeze(-1)
 
+        states_logits = torch.stack(states_logits, dim=0)
+
         # calculate rewards
         if self.config.Plan2Explore:
             rewards = self.ensemble.get_variance(torch.cat((states, actions), dim=-1))
         elif self.config.ditto:
-            rewards = self._calculate_ditto_rewards(states)
+            ditto_states = states_logits if self.config.ditto_state == 'logits' else states
+            rewards = self._calculate_ditto_rewards(ditto_states)
         else:
             rewards = self.world_model.reward(states)
+
         # gammas = self.config.gamma * self.world_model.cont(states)
         gammas = self.config.gamma * torch.ones_like(rewards)
         # weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
@@ -286,10 +307,13 @@ class Agent(torch.nn.Module):
         self._updates += 1
 
     def _calculate_ditto_rewards(self, states):
-        # dot product
-        reward = torch.sum(self.expert_states[1:, :, :self.config.h_dim] * states[..., :self.config.h_dim], dim=-1)
-        reward /= (torch.maximum(torch.norm(self.expert_states[1:, :, :self.config.h_dim], dim=-1),
-                                 torch.norm(states[..., :self.config.h_dim], dim=-1)) ** 2)
+        if self.config.ditto_state == 'deter':
+            expert_states = self.expert_states[1:, :, :self.config.h_dim]
+            states = states[..., :self.config.h_dim]
+        else:
+            expert_states = self.expert_states[1:]
+        reward = torch.sum(expert_states * states, dim=-1)
+        reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(states, dim=-1)) ** 2)
         return reward.unsqueeze(-1)
 
     # --------------------------------------------------------------------------------------------------------------

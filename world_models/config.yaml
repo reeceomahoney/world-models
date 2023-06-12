@@ -19,7 +19,6 @@ default:
   real_time_eval: False
   zero_shot: False
   save_datasets: False
-  expert_replay_ratio: 0.1
 
   # Model
   h_dim: 512
@@ -49,7 +48,7 @@ default:
   init_zero: False
   unimix_ratio: 0.01
   init_deter: 'zero'
-  policy_gradient: 'reinforce'
+  policy_gradient: 'dynamics'
 
   # Exploration
   Plan2Explore: False
@@ -62,10 +61,10 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-#  log_every: 1e3
-#  eval_every: 2e4
-  log_every: 5e2
-  eval_every: 2e3
+  log_every: 1e3
+  eval_every: 2e4
+#  log_every: 5e2
+#  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -78,22 +77,23 @@ raisim:
   random_init_state: False
   expert_init_state: True
   reward:
-    linVel: 0 #4
-    angVel: 0 #2
-    torque: 0 #-1e-5
-    jointSpeed: 0 #-1e-3
+    linVel: 4
+    angVel: 2
   terminal_reward: -1
   commands:
+    random: False
     fwdVelMax: 1
     latVelMax: 0.4
     turnVelMax: 1.2
 
 ditto:
-  ditto_wm_steps: 0
+  ditto_dataset: 'fwd_step'
+  ditto_wm_steps: 5e5
   ditto_wm_eval_every: 2e4
   ditto_il_steps: 1e8
   ditto_batch_size: 512
   ditto_batch_length: 1500
+  ditto_state: 'logits'  # 'deter', 'full', or 'logits'
 
 debug:
   num_envs: 1
@@ -106,5 +106,5 @@ debug:
   eval_steps: 150
   device: 'cuda'
   rick: False
-  ditto_wm_steps: 30
-  ditto_wm_eval_every: 10
+  ditto_wm_steps: 10
+  ditto_wm_eval_every: 20

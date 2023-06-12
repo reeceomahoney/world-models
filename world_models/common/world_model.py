@@ -28,6 +28,9 @@ class WorldModel(nn.Module):
     def dynamics(self, h_t):
         return self._dynamics(h_t).sample()
 
+    def dynamics_logits(self, h_t):
+        return self._dynamics(h_t).logits
+
     def encode(self, h_t, obs):
         return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
 

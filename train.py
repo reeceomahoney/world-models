@@ -23,10 +23,11 @@ args = parser.parse_args()
 # paths
 home_path = Path(__file__).parent.absolute()
 config_path = home_path / 'world_models/config.yaml'
-expert_path = home_path / 'world_models/expert_data/onphase_fwd/expert.npy'
-
-# config and env
 config, config_dict = common.init_config(config_path, args)
+expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset / 'expert.npy'
+print(f'using expert data: {config.ditto_dataset}')
+
+# env
 env_driver = common.get_driver(config, config_dict)
 print(f'using device: {config.device}')
 
@@ -42,30 +43,21 @@ if args.agent is not None:
 # replay buffer
 if args.replay is None:
     if args.ditto:
-        # ditto training
-        state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim})
         expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
         replay = common.ExpertSampler(config, expert_data)
+        state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim, 'post': config.z_dim})
         replays = (replay, state_replay)
-    elif config.Plan2Explore and config.expert_replay_ratio > 0:
-        # p2e training with expert data
-        replay = common.ReplayBuffer(config, {'obs': obs_dim, 'cont': 1, 'action': act_dim})
-        expert_replay = common.ReplayBuffer(config, {'obs': obs_dim, 'cont': 1, 'action': act_dim})
-        expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
-        expert_replay.store_all(expert_data)
-        replays = (replay, expert_replay)
     else:
-        # everything else
         replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})])
 else:
     with open(home_path / args.replay, 'rb') as handle:
         replays = tuple([pickle.load(handle)])
+
+# logger
 logger = common.Logger(config, agent, env_driver, replays[0])
 
+# train
 if not args.ditto:
     dreamer.main(config, env_driver, agent, replays, logger)
 else:
     ditto.main(config, env_driver, agent, replays, logger)
-
-# TODO: fix batch sampler to init at the correct hidden state
-# TODO: plot value func variance, gradient norms

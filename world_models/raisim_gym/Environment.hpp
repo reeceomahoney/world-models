@@ -68,8 +68,8 @@ class ENVIRONMENT : public RaisimGymEnv {
     anymal_->setGeneralizedForce(gf_);
     timeSinceReset_ = 0;
     addVelNoise_ = cfg["add_velocity_noise"].template As<bool>();
-    randInitState_ = cfg["random_initial_state"].template As<bool>();
-    expertInitState_ = cfg["expert_initial_state"].template As<bool>();
+    randInitState_ = cfg["random_init_state"].template As<bool>();
+    expertInitState_ = cfg["expert_init_state"].template As<bool>();
 
     /// nominal configuration
     gc_init_ << 0., 0., 0.55, 1.0, 0., 0., 0.,
@@ -91,7 +91,8 @@ class ENVIRONMENT : public RaisimGymEnv {
     rewards_.initializeFromConfigurationFile (cfg["reward"]);
     terminalRewardCoeff_ = cfg["terminal_reward"].template As<double>();
 
-    /// Command ranges
+    /// Commands
+    randomCommands_ = cfg["commands"]["random"].template As<bool>();
     maxDesiredVel_[0] = cfg["commands"]["fwdVelMax"].template As<double>();
     maxDesiredVel_[1] = cfg["commands"]["latVelMax"].template As<double>();
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
@@ -153,27 +154,28 @@ class ENVIRONMENT : public RaisimGymEnv {
     }
 
     /// record rewards
-//    auto linVelDesired = Eigen::Vector3d{desiredVel_[0], desiredVel_[1], 0.};
-//    auto angVelDesired = Eigen::Vector3d{0., 0., desiredVel_[2]};
-//
-//    rewards_.record("linVel", logisticKernel(4*(bodyLinearVel_ - linVelDesired).squaredNorm()));
-//    rewards_.record("angVel", logisticKernel(4*(bodyAngularVel_[2] - angVelDesired[2])));
-//    rewards_.record("torque", anymal_->getGeneralizedForce().squaredNorm());
-//    rewards_.record("jointSpeed", gv_.tail(nJoints_).squaredNorm());
+    auto linVelDesired = Eigen::Vector3d{desiredVel_[0], desiredVel_[1], 0.};
+    auto angVelDesired = Eigen::Vector3d{0., 0., desiredVel_[2]};
+    rewards_.record("linVel", logisticKernel(4*(bodyLinearVel_ - linVelDesired).squaredNorm()));
+    rewards_.record("angVel", logisticKernel(4*(bodyAngularVel_[2] - angVelDesired[2])));
 
     /// generate commands
-//    if (int(100*timeSinceReset_) % 200 <= 1) {
-//        if (uniformDist_(gen_) < 0.1) {
-//            // generate zero command 10% of the time
-//            desiredVel_.setZero();
-//        } else {
-//            // scaling from onphase config
-//            desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
-//            desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
-//            desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
-//        }
-//    }
-    desiredVel_ << 1., 0, -0.3125;
+    if (randomCommands_) {
+        if (int(100*timeSinceReset_) % 200 <= 1) {
+            if (uniformDist_(gen_) < 0.1) {
+                // generate zero command 10% of the time
+                desiredVel_.setZero();
+            } else {
+                // scaling from onphase config
+                desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
+                desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
+                desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
+            }
+        }
+    } else {
+        desiredVel_ << 1., 0, -0.3125;
+    }
+
     timeSinceReset_ += control_dt_;
 
     return rewards_.sum();
@@ -239,14 +241,14 @@ class ENVIRONMENT : public RaisimGymEnv {
   void setTarget(const Eigen::Ref<EigenVec>& decodedObs) {
       raisim::Vec<3> euler;
       raisim::Vec<4> quat;
-      Eigen::VectorXd obs = decodedObs.cast<double>();
+      Eigen::Matrix<double, 36, 1> obs = decodedObs.cast<double>();
 
       euler[0] = obs[0];
       euler[1] = obs[1];
       euler[2] = obs[2];
       raisim::eulerVecToQuat(euler, quat);
 
-      pTarget_[2] = 0.65;
+      pTarget_[2] = 0.63;
       pTarget_.segment(3, 4) = quat.e();
       pTarget_.segment(7, 12) = obs.segment(3, 12);
       vTarget_.segment(0, 3) = obs.segment(15, 3);
@@ -255,18 +257,15 @@ class ENVIRONMENT : public RaisimGymEnv {
 
       for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
           if (server_) server_->lockVisualizationServerMutex();
-
           anymal_->setState(pTarget_, vTarget_);
           world_->integrate();
-          updateObservation();
-
           if (server_) server_->unlockVisualizationServerMutex();
       }
   }
 
  private:
   int gcDim_, gvDim_, nJoints_, datasetSize_;
-  bool visualizable_ = false, addVelNoise_, randInitState_, expertInitState_;
+  bool visualizable_ = false, addVelNoise_, randInitState_, expertInitState_, randomCommands_;
   raisim::ArticulatedSystem* anymal_;
   Eigen::VectorXd gc_, gv_;
   Eigen::MatrixXd expertDataset_;

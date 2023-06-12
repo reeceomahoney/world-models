@@ -31,7 +31,8 @@ class ReplayBuffer:
         self._enforce_limit()
 
     def store_all(self, data):
-        self.episodes.append(data)
+        # self.episodes.append(data)
+        self.episodes = [data]
 
     def store_all_from_tensors(self, data):
         data = {k: [x.squeeze(1) for x in torch.split(v, 1, dim=1)] for k, v in data.items()}

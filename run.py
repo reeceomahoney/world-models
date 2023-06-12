@@ -47,5 +47,6 @@ for _ in range(5):
         sim_delta = 0.04 * config.action_repeat
         if delta < sim_delta:
             time.sleep(sim_delta - delta)
+            time.sleep(0.1)
         if done or step == config.eval_steps - 1:
             obs, h_t, action = env_driver.reset()

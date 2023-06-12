@@ -16,20 +16,20 @@ def main(config, env_driver, agent, replays, logger):
 
         if should_eval(step):
             # encode and store expert data
-            # states = agent.encode_expert_data(replay)[-1]
-            # state_replay.store_all_from_tensors(states)
-            #
-            # timer = common.Timer(config.control_dt, sleep=True)
-            # env_driver.turn_on_visualization()
-            # for _ in range(10):
-            #     env_driver.reset()
-            #     data = state_replay.sample(1, config.imag_horizon + 1)
-            #     for i in range(next(iter(data.values())).shape[0]):
-            #         timer.start()
-            #         obs_target = agent.world_model.decode(data['state'][i])
-            #         env_driver.set_target(obs_target.detach().cpu().numpy())
-            #         timer.end()
-            # env_driver.turn_off_visualization()
+            states = agent.encode_expert_data(replay)
+            state_replay.store_all(states)
+
+            timer = common.Timer(config.control_dt, sleep=True)
+            env_driver.turn_on_visualization()
+            for _ in range(3):
+                env_driver.reset()
+                data = state_replay.sample(1, 64)
+                for i in range(data['state'].shape[0]):
+                    timer.start()
+                    obs_target = agent.world_model.decode(data['state'][i])
+                    env_driver.set_target(obs_target.detach().cpu().numpy())
+                    timer.end()
+            env_driver.turn_off_visualization()
             torch.save(agent.state_dict(), f'{logger.writer.log_dir}/../models/agent_{step}.pt')
 
     # encode and store expert data
