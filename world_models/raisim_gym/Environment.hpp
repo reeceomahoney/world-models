@@ -97,9 +97,13 @@ class ENVIRONMENT : public RaisimGymEnv {
     maxDesiredVel_[1] = cfg["commands"]["latVelMax"].template As<double>();
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
 
-    /// load expert data
-    expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/onphase_fwd/init_data.csv");
-    datasetSize_ = expertDataset_.rows();
+    /// load expert data (must run with --ditto True to load config)
+    if (expertInitState_) {
+        auto datasetName = cfg["ditto_dataset"].template As<std::string>();
+        std::cout << "Loading expert data from " << datasetName << std::endl;
+        expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/" + datasetName + "/init_data.csv");
+        datasetSize_ = expertDataset_.rows();
+    }
 
     /// visualize if it is the first environment
     if (visualizable_) {
@@ -114,8 +118,8 @@ class ENVIRONMENT : public RaisimGymEnv {
 
   void reset() final {
     if (expertInitState_) {
-        int row = (datasetSize_ - 1) * abs(uniformDist_(gen_));
-        Eigen::VectorXd state = expertDataset_.row(row);
+        initRow_ = (datasetSize_ - 1) * abs(uniformDist_(gen_));
+        Eigen::VectorXd state = expertDataset_.row(initRow_);
         anymal_->setState(state.segment(0, 19), state.segment(19, 18));
     } else if (randInitState_) {
         sampleInitialState();
@@ -173,7 +177,7 @@ class ENVIRONMENT : public RaisimGymEnv {
             }
         }
     } else {
-        desiredVel_ << 1., 0, -0.3125;
+        desiredVel_ << 0.5, 0., 0.;
     }
 
     timeSinceReset_ += control_dt_;
@@ -264,7 +268,7 @@ class ENVIRONMENT : public RaisimGymEnv {
   }
 
  private:
-  int gcDim_, gvDim_, nJoints_, datasetSize_;
+  int gcDim_, gvDim_, nJoints_, datasetSize_, initRow_;
   bool visualizable_ = false, addVelNoise_, randInitState_, expertInitState_, randomCommands_;
   raisim::ArticulatedSystem* anymal_;
   Eigen::VectorXd gc_, gv_;
