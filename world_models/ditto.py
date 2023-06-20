@@ -34,6 +34,7 @@ def main(config, env_driver, agent, replays, logger):
 
     # encode and store expert data
     states = agent.encode_expert_data(replay)
+    states = {k: v.detach()for k, v in states.items()}
     state_replay.store_all(states)
 
     # imitation learning

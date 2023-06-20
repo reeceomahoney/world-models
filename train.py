@@ -36,8 +36,10 @@ obs_dim, act_dim = env_driver.env_info()[:2]
 agent = Agent(*env_driver.env_info(), config)
 if args.agent is not None:
     agent_state_dict = torch.load(home_path / args.agent, map_location=config.device)
-    # This is necessary to avoid duplicating the actor parameters
-    agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if not k.startswith('actor')])
+    # These are for loading wms different to the current model, uncomment if needed
+    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if not k.startswith('actor')])
+    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'actor' not in k])
+    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
     agent.load_state_dict(agent_state_dict, strict=False)
 
 # replay buffer
@@ -45,7 +47,9 @@ if args.replay is None:
     if args.ditto:
         expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
         replay = common.ExpertSampler(config, expert_data)
-        state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim, 'post': config.z_dim})
+        state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim,
+                                                    'post': config.z_dim,
+                                                    'action': act_dim})
         replays = (replay, state_replay)
     else:
         replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})])

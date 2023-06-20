@@ -38,15 +38,13 @@ agent = Agent(*env_driver.env_info(), config)
 agent.load_state_dict(agent_state_dict, strict=False)
 
 obs, h_t, action = env_driver.reset()
+timer = common.Timer(config.control_dt, True)
+
 for _ in range(5):
     for step in range(500):
-        start = time.time()
+        timer.start()
         obs, reward, done = env_driver(action)
         h_t, action = agent(h_t, obs)
-        delta = time.time() - start
-        sim_delta = 0.04 * config.action_repeat
-        if delta < sim_delta:
-            time.sleep(sim_delta - delta)
-            time.sleep(0.1)
+        timer.end()
         if done or step == config.eval_steps - 1:
             obs, h_t, action = env_driver.reset()

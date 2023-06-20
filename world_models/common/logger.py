@@ -97,8 +97,15 @@ class Logger:
 
         # evaluation
         if eval_step:
-            for name in ['obs_error', 'reward_error', 'gamma_error']:
+            for name in ['obs_error']:  # , 'reward_error', 'cont_error']:
                 self._write_scalar(name, 'evaluation', self.eval_info, step)
+
+            if self.config.env_name == 'raisim' and sum(self.reward_info['linVel']) > 0:  # heuristic
+                for k in self.reward_info.keys():
+                    self.reward_mean[k] = np.mean(np.array(self.reward_info[k]))
+                    # self.reward_std[k] = np.std(np.array(self.reward_info[k]))
+            self.writer.add_scalars('rewards/mean', self.reward_mean, step)
+            # self.writer.add_scalars('rewards/std', self.reward_std, step)
 
         # imagination
         for name in ['imag_reward', 'imag_values', 'imag_value_targets']:
@@ -106,15 +113,8 @@ class Logger:
         if 'reward_ema' in info:
             self.writer.add_scalars('imag/reward_ema', info['reward_ema'], step)
 
-        if self.config.env_name == 'raisim' and sum(self.reward_info['linVel']) > 0:  # heuristic
-            for k in self.reward_info.keys():
-                self.reward_mean[k] = np.mean(np.array(self.reward_info[k]))
-                self.reward_std[k] = np.std(np.array(self.reward_info[k]))
-            self.writer.add_scalars('rewards/mean', self.reward_mean, step)
-            self.writer.add_scalars('rewards/std', self.reward_std, step)
-
         # misc
-        for name in ['act_std', 'buffer_size', 'act_size']:
+        for name in ['act_std', 'buffer_size', 'act_size', 'act_diff']:
             self._write_scalar(name, 'misc', info, step)
 
     def _write_scalar(self, name, section, info, step):
