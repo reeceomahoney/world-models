@@ -36,19 +36,22 @@ default:
   ac_eps: 1e-5
   ac_grad_clip: 100
   weight_decay: 1e-6
+  critic_model: 'Gaussian'  # Gaussian or TwoHot
   beta_dyn: 0.5
   beta_repr: 0.1
   gamma: 0.997
   lam: 0.95
   entropy_coeff: 3e-4
   imag_horizon: 15
-  slow_critic_update: 1
-  slow_critic_fraction: 0.02
+  critic_update: 'hard'  # 'hard' or 'soft
+  critic_update_freq: 500
+  critic_update_fraction: 0.02
   action_repeat: 2
   init_zero: False
   unimix_ratio: 0.01
   init_deter: 'zero'
   policy_gradient: 'dynamics'
+  latent_noise_factor: 0  # dataset std = 0.572
 
   # Exploration
   Plan2Explore: False
@@ -61,12 +64,12 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-  log_every: 1e3
-  eval_every: 2e4
-#  log_every: 5e2
-#  eval_every: 2e3
+#  log_every: 1e3
+#  eval_every: 2e4
+  log_every: 5e2
+  eval_every: 2e3
   eval_eps: 2
-  eval_steps: 150
+  eval_steps: 300
   render: True
   num_threads: 8
   real_time_eval: True
@@ -87,13 +90,13 @@ raisim:
     turnVelMax: 1.2
 
 ditto:
-  ditto_dataset: 'fwd_step'
-  ditto_wm_steps: 5e5
+  ditto_dataset: 'fwd_step_05'
+  ditto_wm_steps: 0
   ditto_wm_eval_every: 2e4
   ditto_il_steps: 1e8
   ditto_batch_size: 512
   ditto_batch_length: 1500
-  ditto_state: 'logits'  # 'deter', 'full', or 'logits'
+  ditto_state: 'deter'  # 'deter', 'full', or 'logits'
 
 debug:
   num_envs: 1

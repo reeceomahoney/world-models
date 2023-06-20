@@ -59,6 +59,15 @@ class Decoder(BaseMLP):
         return D.Independent(dist, 1)
 
 
+class GaussianMLP(BaseMLP):
+    def __init__(self, config):
+        super(GaussianMLP, self).__init__(config.h_dim + config.z_dim, 1, config.layers, config.act, config.device)
+
+    def __call__(self, x):
+        dist = SymlogGaussian(self.architecture(x), 1)
+        return D.Independent(dist, 1)
+
+
 class TwoHotSymlogMLP(BaseMLP):
     def __init__(self, config):
         super(TwoHotSymlogMLP, self).__init__(config.h_dim + config.z_dim, 255, config.layers, config.act,

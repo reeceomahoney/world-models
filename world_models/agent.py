@@ -16,15 +16,21 @@ class Agent(torch.nn.Module):
         self.world_model = common.WorldModel(obs_dim, act_dim, config)
         self.ensemble = common.Ensemble(act_dim, config)
 
-        self.expl_actor = common.Actor(act_dim, act_range, config)
-        self.expl_critic = common.TwoHotSymlogMLP(config)
-        self.expl_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
-
         self.act_dim = act_dim
         self.act_range = act_range
         self.task_actor = common.Actor(act_dim, act_range, config)
-        self.task_critic = common.TwoHotSymlogMLP(config)
-        self.task_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
+        self.expl_actor = common.Actor(act_dim, act_range, config)
+
+        if config.critic_model == 'Gaussian':
+            self.task_critic = common.GaussianMLP(config)
+            self.task_slow_critic = common.GaussianMLP(config).requires_grad_(False)
+            self.expl_critic = common.GaussianMLP(config)
+            self.expl_slow_critic = common.GaussianMLP(config).requires_grad_(False)
+        elif config.critic_model == 'TwoHot':
+            self.task_critic = common.TwoHotSymlogMLP(config)
+            self.task_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
+            self.expl_critic = common.TwoHotSymlogMLP(config)
+            self.expl_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
 
         # training
         wm_opt = {'eps': config.model_eps, 'weight_decay': config.weight_decay}
@@ -44,7 +50,7 @@ class Agent(torch.nn.Module):
         self.critic, self.slow_critic, self.critic_optim = None, None, None
 
         # ditto
-        self.expert_states, self.h_last = None, None
+        self.expert_states, self.expert_actions, self.h_last = None, None, None
 
         # utility
         self.reward_ema = common.RewardEMA(config.device)
@@ -89,13 +95,15 @@ class Agent(torch.nn.Module):
             return {}
 
     def ditto_step(self, replay):
+        expert_sample = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)
+        expert_sample['state'][..., :self.config.h_dim] += \
+            torch.randn_like(expert_sample['state'][..., :self.config.h_dim]) * self.config.latent_noise_factor * 0.572
+        self.expert_actions = expert_sample['action']
         if self.config.ditto_state == 'logits':
-            expert_sample = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)
             self.expert_states = torch.cat((expert_sample['state'][..., :self.config.h_dim],
-                                            expert_sample['post']), dim=-1).detach()
+                                            expert_sample['post']), dim=-1)
         else:
-            self.expert_states = replay.sample(
-                self.config.ditto_batch_size, self.config.imag_horizon + 1)['state'].detach()
+            self.expert_states = expert_sample['state']
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
@@ -155,6 +163,7 @@ class Agent(torch.nn.Module):
                 h_t = self.world_model.forward(h_t, z_t, data['action'][t])
 
         states = {k: torch.stack(v, dim=0) for k, v in states.items()}
+        states['action'] = data['action']
         return states, h_t
 
     # --------------------------------------------------------------------------------------------------------------
@@ -216,6 +225,9 @@ class Agent(torch.nn.Module):
 
         states_logits = torch.stack(states_logits, dim=0)
 
+        # mean distance between agent and expert actions
+        act_diff = torch.norm(actions - self.expert_actions[1:], dim=-1).mean()
+
         # calculate rewards
         if self.config.Plan2Explore:
             rewards = self.ensemble.get_variance(torch.cat((states, actions), dim=-1))
@@ -225,10 +237,8 @@ class Agent(torch.nn.Module):
         else:
             rewards = self.world_model.reward(states)
 
-        # gammas = self.config.gamma * self.world_model.cont(states)
-        gammas = self.config.gamma * torch.ones_like(rewards)
-        # weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
-        weights = torch.ones_like(gammas).detach()
+        # calculate gammas and weights
+        gammas, weights = self._calculate_gammas(rewards, states)
 
         # calculate value targets
         policy_loss, entropy_loss, value_targets = self._calculate_policy_loss(
@@ -254,13 +264,20 @@ class Agent(torch.nn.Module):
                 'imag_values': values.mean(),
                 'imag_value_targets': value_targets.mean(),
                 'reward_ema': {'05': self.reward_ema.values[0], '95': self.reward_ema.values[1]},
+                'act_diff': act_diff,
                 **info}
 
     def _calculate_policy_loss(self, states, action_log_probs, rewards, gammas, weights, entropy):
         self.critic.requires_grad_(False)
 
         value_targets = []
-        values = self.critic(states).mode()
+        if self.config.critic_update == 'hard':
+            values = self.slow_critic(states).mode()
+        elif self.config.critic_update == 'soft':
+            values = self.critic(states).mode()
+        else:
+            raise NotImplementedError
+
         for t in reversed(range(self.config.imag_horizon - 1)):
             if t == self.config.imag_horizon - 2:
                 target = values[t + 1]
@@ -291,17 +308,20 @@ class Agent(torch.nn.Module):
         self.actor.requires_grad_(False)
 
         values = self.critic(states[:-1].detach())
-        slow_critic = self.slow_critic(states[:-1].detach())
         value_loss = -values.log_prob(value_targets.detach())
-        value_loss -= values.log_prob(slow_critic.mode().detach())
+        if self.config.critic_update == 'soft':
+            slow_critic = self.slow_critic(states[:-1].detach())
+            value_loss -= values.log_prob(slow_critic.mode().detach())
         value_loss = (weights[:-1] * value_loss.unsqueeze(-1)).mean()
 
         self.actor.requires_grad_(True)
         return value_loss, values.mode()
 
     def _update_slow_critic(self):
-        if self._updates % self.config.slow_critic_update == 0:
-            mix = self.config.slow_critic_fraction
+        if self.config.critic_update == 'hard' and self._updates % self.config.critic_update_freq == 0:
+            self.slow_critic.load_state_dict(self.critic.state_dict())
+        elif self.config.critic_update == 'soft':
+            mix = self.config.critic_update_fraction
             for s, d in zip(self.critic.parameters(), self.slow_critic.parameters()):
                 d.data = mix * s.data + (1 - mix) * d.data
         self._updates += 1
@@ -340,3 +360,14 @@ class Agent(torch.nn.Module):
             return 0.01 * torch.randn((size, self.h_dim)).to(self.device)
         else:
             raise NotImplementedError(f'Unknown init_deter: {self.config.init_deter}')
+
+    def _calculate_gammas(self, states, rewards):
+        if self.config.ditto:
+            # cont model isn't use for ditto
+            gammas = self.config.gamma * torch.ones_like(rewards)
+            weights = torch.ones_like(gammas).detach()
+        else:
+            gammas = self.config.gamma * self.world_model.cont(states)
+            weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
+
+        return gammas, weights

@@ -19,6 +19,20 @@ class TruncatedNormal(D.Normal, ABC):
         return super().log_prob(x)
 
 
+class SymlogGaussian(D.Normal, ABC):
+    def __init__(self, mean, std):
+        super(SymlogGaussian, self).__init__(symlog(mean), std)
+
+    def mode(self):
+        return symexp(super().mode)
+
+    def sample(self, sample_shape=()):
+        return symexp(super().rsample(sample_shape))
+
+    def log_prob(self, x):
+        return super().log_prob(symlog(x))
+
+
 class CategoricalDist:
     def __init__(self, logits, unimix_ratio=0.01, dim=32):
         probs = F.softmax(logits, dim=-1)
