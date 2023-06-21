@@ -39,29 +39,29 @@ if args.agent is not None:
     # These are for loading wms different to the current model, uncomment if needed
     # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if not k.startswith('actor')])
     # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'actor' not in k])
-    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
+    agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
     agent.load_state_dict(agent_state_dict, strict=False)
 
 # replay buffer
 if args.replay is None:
     if args.ditto:
         expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
-        replay = common.ExpertSampler(config, expert_data)
-        state_replay = common.ReplayBuffer(config, {'state': config.h_dim + config.z_dim,
-                                                    'post': config.z_dim,
-                                                    'action': act_dim})
-        replays = (replay, state_replay)
+        expert_sampler = common.ExpertSampler(config, expert_data)
+
+        expert_eval_path = expert_path.parent / 'expert_eval.npy'
+        expert_eval_data = common.load_expert_data(expert_eval_path, obs_dim, config.device)
+        del expert_eval_data['cont']
+
+        logger = common.DittoLogger(config, agent, env_driver, expert_sampler, expert_eval_data)
     else:
         replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})])
+        logger = common.Logger(config, agent, env_driver, replays[0])
 else:
     with open(home_path / args.replay, 'rb') as handle:
         replays = tuple([pickle.load(handle)])
-
-# logger
-logger = common.Logger(config, agent, env_driver, replays[0])
 
 # train
 if not args.ditto:
     dreamer.main(config, env_driver, agent, replays, logger)
 else:
-    ditto.main(config, env_driver, agent, replays, logger)
+    ditto.main(config, env_driver, agent, expert_sampler, logger)

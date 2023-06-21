@@ -106,6 +106,9 @@ class RaisimDriver(DriverBase):
     def set_target(self, target):
         self._env.set_target(target)
 
+    def get_init_row(self):
+        return self._env.get_init_row()
+
 
 def get_driver(config, config_dict=None):
     if config.env_name == 'raisim':

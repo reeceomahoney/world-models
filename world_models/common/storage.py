@@ -104,3 +104,21 @@ class ExpertSampler:
 
     def get_all(self):
         return self.data_unsplit
+
+
+class LatentSampler:
+    """
+    Random sampler for the encoded expert data.
+    """
+    def __init__(self, data):
+        self.data = data
+        self.len_samples, self.n_samples = data['state'].shape[:2]
+
+    def __iter__(self):
+        return self
+
+    def sample(self, batch_size, batch_length):
+        idx = torch.randint(self.n_samples, (batch_size,))
+        start = torch.randint(self.len_samples - batch_length + 1, (batch_size,))
+        end = start + batch_length
+        return {k: v[s:e, idx] for s, e in zip(start, end) for k, v in self.data.items()}

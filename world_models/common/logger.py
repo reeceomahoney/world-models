@@ -97,7 +97,7 @@ class Logger:
 
         # evaluation
         if eval_step:
-            for name in ['obs_error']:  # , 'reward_error', 'cont_error']:
+            for name in ['obs_error', 'reward_error', 'cont_error', 'eval_reward']:
                 self._write_scalar(name, 'evaluation', self.eval_info, step)
 
             if self.config.env_name == 'raisim' and sum(self.reward_info['linVel']) > 0:  # heuristic
@@ -137,3 +137,46 @@ class Logger:
         if 'imag_reward' in info:
             print(f"img tot reward: {info['imag_reward'].item():.3f}")
         print("-----------------------------------------\n")
+
+
+class DittoLogger(Logger):
+    def __init__(self, config, agent, env_driver, replay, expert_eval_data):
+        super().__init__(config, agent, env_driver, replay)
+        self.expert_eval_data = expert_eval_data
+
+    def _eval(self, step):
+        print('evaluating...')
+        self.eval_info = {'obs_error': 0, 'eval_reward': 0}
+        eval_driver = self.env_driver
+        eval_driver.turn_on_visualization()
+        timer = Timer(self.config.control_dt, self.config.real_time_eval)
+
+        for _ in range(self.config.eval_eps):
+            obs, h_t, _ = eval_driver.reset()
+
+            # get encoded expert data for reward
+            init_row = eval_driver.get_init_row() + 1
+            expert_data = {k: v[init_row:init_row + self.config.eval_steps] for k, v in self.expert_eval_data.items()}
+            expert_states = self.agent.encode_expert_data(expert_data)
+
+            n = self.config.eval_eps * self.config.eval_steps
+            agent_states = []
+            for t in range(self.config.eval_steps):
+                timer.start()
+                preds, h_t, action = self.agent.predict(h_t, obs)
+                obs, reward, done = eval_driver(action)
+                self.eval_info['obs_error'] += torch.norm(preds[0] - obs) / n
+                agent_states.append(h_t)
+                timer.end()
+                if done.any():
+                    obs, h_t, _ = eval_driver.reset()
+            agent_states = torch.stack(agent_states, dim=0)
+
+            # compute reward
+            expert_states = expert_states['state'][..., :self.config.h_dim]
+            reward = torch.sum(expert_states * agent_states, dim=-1)
+            reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(agent_states, dim=-1)) ** 2)
+            self.eval_info['eval_reward'] += reward.mean() / self.config.eval_eps
+
+        torch.save(self.agent.state_dict(), self.writer.log_dir + f'/../models/agent_{step}.pt')
+        eval_driver.turn_off_visualization()

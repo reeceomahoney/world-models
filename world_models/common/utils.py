@@ -144,8 +144,8 @@ def symexp(x):
 
 def load_expert_data(path, obs_dim, device):
     expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
-    obs = symlog(expert_data[:, :obs_dim])
-    action = expert_data[:, obs_dim:]
-    cont = torch.ones((action.shape[0], 1)).to(device)
+    obs = symlog(expert_data[..., :obs_dim])
+    action = expert_data[..., obs_dim:]
+    cont = torch.ones((*action.shape[:2], 1)).to(device)
     return {'obs': obs, 'cont': cont, 'action': action}
 

@@ -99,23 +99,29 @@ class Agent(torch.nn.Module):
         expert_sample['state'][..., :self.config.h_dim] += \
             torch.randn_like(expert_sample['state'][..., :self.config.h_dim]) * self.config.latent_noise_factor * 0.572
         self.expert_actions = expert_sample['action']
+
         if self.config.ditto_state == 'logits':
             self.expert_states = torch.cat((expert_sample['state'][..., :self.config.h_dim],
                                             expert_sample['post']), dim=-1)
         else:
             self.expert_states = expert_sample['state']
+
         return self._train_actor_critic(self.expert_states[0])
 
     def encode_expert_data(self, replay):
-        data = replay.get_all()
-        h_init = self._init_deter(1).squeeze(0)
+        self.world_model.requires_grad_(False)
+
+        data = replay if type(replay) == dict else replay.get_all()
+        h_init = self._init_deter(data['obs'].shape[1])
 
         if self.config.ditto_state == 'logits':
             states = self._encode_data(data, h_init, {'state': [], 'post': []})[0]
             states['state'] = torch.cat((states['state'][..., :self.config.h_dim], states['post']), dim=-1)
-            return states
         else:
-            return self._encode_data(data, h_init, {'state': [], 'post': []})[0]
+            states = self._encode_data(data, h_init, {'state': []})[0]
+
+        self.world_model.requires_grad_(True)
+        return states
 
     # --------------------------------------------------------------------------------------------------------------
     # World Model
@@ -123,7 +129,7 @@ class Agent(torch.nn.Module):
     def train_world_model(self, replay):
         # (seq_length, batch_size, obs_dim)
         data = next(replay)
-        h_init = self._init_deter(1).squeeze(0) if replay.idx == 1 else self.h_last
+        h_init = self._init_deter(data['obs'].shape[1]) if replay.idx == 1 else self.h_last
 
         states, h_last = self._encode_data(data, h_init, {'state': [], 'post': [], 'prior': []})
         self.h_last = h_last.detach()
@@ -238,7 +244,7 @@ class Agent(torch.nn.Module):
             rewards = self.world_model.reward(states)
 
         # calculate gammas and weights
-        gammas, weights = self._calculate_gammas(rewards, states)
+        gammas, weights = self._calculate_gammas(states, rewards)
 
         # calculate value targets
         policy_loss, entropy_loss, value_targets = self._calculate_policy_loss(
