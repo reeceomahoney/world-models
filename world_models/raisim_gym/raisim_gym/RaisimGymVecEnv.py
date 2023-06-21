@@ -52,6 +52,9 @@ class RaisimGymVecEnv:
     def set_target(self, p_target):
         self.wrapper.setTarget(p_target)
 
+    def get_init_row(self):
+        return self.wrapper.getInitRow()
+
     def load_scaling(self, dir_name, iteration, count=1e5):
         mean_file_name = dir_name + "/mean" + str(iteration) + ".csv"
         var_file_name = dir_name + "/var" + str(iteration) + ".csv"

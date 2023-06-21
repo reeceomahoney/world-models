@@ -118,7 +118,7 @@ class ENVIRONMENT : public RaisimGymEnv {
 
   void reset() final {
     if (expertInitState_) {
-        initRow_ = (datasetSize_ - 1) * abs(uniformDist_(gen_));
+        initRow_ = (datasetSize_ - 160) * abs(uniformDist_(gen_));
         Eigen::VectorXd state = expertDataset_.row(initRow_);
         anymal_->setState(state.segment(0, 19), state.segment(19, 18));
     } else if (randInitState_) {
@@ -265,6 +265,10 @@ class ENVIRONMENT : public RaisimGymEnv {
           world_->integrate();
           if (server_) server_->unlockVisualizationServerMutex();
       }
+  }
+
+  int getInitRow() {
+      return initRow_;
   }
 
  private:

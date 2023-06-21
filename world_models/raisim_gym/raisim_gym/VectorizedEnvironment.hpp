@@ -150,6 +150,10 @@ class VectorizedEnvironment {
       environments_[i]->setTarget(target.row(i));
   }
 
+  int getInitRow() {
+    return environments_[0]->getInitRow();
+  }
+
   const std::vector<std::map<std::string, float>>& getRewardInfo() { return rewardInformation_; }
 
  private:
