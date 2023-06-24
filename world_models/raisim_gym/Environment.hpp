@@ -165,15 +165,14 @@ class ENVIRONMENT : public RaisimGymEnv {
 
     /// generate commands
     if (randomCommands_) {
-        if (int(100*timeSinceReset_) % 200 <= 1) {
+        if (int(100*timeSinceReset_) % 400 <= 1) {
             if (uniformDist_(gen_) < 0.1) {
                 // generate zero command 10% of the time
                 desiredVel_.setZero();
             } else {
-                // scaling from onphase config
-                desiredVel_[0] = 1.0 * maxDesiredVel_[0] * uniformDist_(gen_);
-                desiredVel_[1] = 0.75 * maxDesiredVel_[1] * uniformDist_(gen_);
-                desiredVel_[2] = 1.25 * maxDesiredVel_[2] * uniformDist_(gen_);
+                desiredVel_[0] = maxDesiredVel_[0] * uniformDist_(gen_);
+                desiredVel_[1] = maxDesiredVel_[1] * uniformDist_(gen_);
+                desiredVel_[2] = maxDesiredVel_[2] * uniformDist_(gen_);
             }
         }
     } else {

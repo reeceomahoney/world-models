@@ -37,9 +37,8 @@ agent = Agent(*env_driver.env_info(), config)
 if args.agent is not None:
     agent_state_dict = torch.load(home_path / args.agent, map_location=config.device)
     # These are for loading wms different to the current model, uncomment if needed
-    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if not k.startswith('actor')])
     # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'actor' not in k])
-    agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
+    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
     agent.load_state_dict(agent_state_dict, strict=False)
 
 # replay buffer

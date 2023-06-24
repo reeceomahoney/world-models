@@ -51,7 +51,7 @@ default:
   unimix_ratio: 0.01
   init_deter: 'zero'
   policy_gradient: 'dynamics'
-  latent_noise_factor: 0  # dataset std = 0.572
+  latent_noise_factor: 0 # dataset std = 0.44
 
   # Exploration
   Plan2Explore: False
@@ -64,10 +64,10 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-  log_every: 1e3
-  eval_every: 2e4
-#  log_every: 5e2
-#  eval_every: 2e3
+  # log_every: 1e3
+  # eval_every: 2e4
+  log_every: 5e2
+  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -84,14 +84,14 @@ raisim:
     angVel: 2
   terminal_reward: -1
   commands:
-    random: False
-    fwdVelMax: 1
-    latVelMax: 0.4
-    turnVelMax: 1.2
+    random: True
+    fwdVelMax: 0.5
+    latVelMax: 0.375
+    turnVelMax: 0.625
 
 ditto:
   ditto_dataset: 'rand_eps'
-  ditto_wm_steps: 5e5
+  ditto_wm_steps: 0
   ditto_wm_eval_every: 2e4
   ditto_il_steps: 1e8
   ditto_batch_size: 512

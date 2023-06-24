@@ -1,5 +1,4 @@
 import argparse
-import time
 from collections import OrderedDict
 from pathlib import Path
 
@@ -31,8 +30,8 @@ else:
 agent_state_dict = torch.load(agent_path, map_location=config.device)
 
 # backwards compatibility (remember to comment out ensemble)
-old_name = lambda key: key.startswith('actor') or key.startswith('critic') or key.startswith('slow')
-agent_state_dict = OrderedDict([('task_' + k, v) if old_name(k) else (k, v) for k, v in agent_state_dict.items()])
+# old_name = lambda key: key.startswith('actor') or key.startswith('critic') or key.startswith('slow')
+# agent_state_dict = OrderedDict([('task_' + k, v) if old_name(k) else (k, v) for k, v in agent_state_dict.items()])
 
 agent = Agent(*env_driver.env_info(), config)
 agent.load_state_dict(agent_state_dict, strict=False)
@@ -44,7 +43,7 @@ for _ in range(5):
     for step in range(500):
         timer.start()
         obs, reward, done = env_driver(action)
-        h_t, action = agent(h_t, obs)
+        h_t, action = agent(h_t, obs, deterministic=True)
         timer.end()
         if done or step == config.eval_steps - 1:
             obs, h_t, action = env_driver.reset()

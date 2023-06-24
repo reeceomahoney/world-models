@@ -146,21 +146,17 @@ class DittoLogger(Logger):
 
     def _eval(self, step):
         print('evaluating...')
-        self.eval_info = {'obs_error': 0, 'eval_reward': 0}
+        self.eval_info = {'obs_error': 0, 'eval_reward': torch.empty((0, 1)).to(self.config.device)}
         eval_driver = self.env_driver
         eval_driver.turn_on_visualization()
         timer = Timer(self.config.control_dt, self.config.real_time_eval)
+        n = self.config.eval_eps * self.config.eval_steps
 
+        agent_states = []
         for _ in range(self.config.eval_eps):
+            agent_states = self._calculate_eval_reward(eval_driver, agent_states)
             obs, h_t, _ = eval_driver.reset()
 
-            # get encoded expert data for reward
-            init_row = eval_driver.get_init_row() + 1
-            expert_data = {k: v[init_row:init_row + self.config.eval_steps] for k, v in self.expert_eval_data.items()}
-            expert_states = self.agent.encode_expert_data(expert_data)
-
-            n = self.config.eval_eps * self.config.eval_steps
-            agent_states = []
             for t in range(self.config.eval_steps):
                 timer.start()
                 preds, h_t, action = self.agent.predict(h_t, obs)
@@ -169,14 +165,29 @@ class DittoLogger(Logger):
                 agent_states.append(h_t)
                 timer.end()
                 if done.any():
+                    agent_states = self._calculate_eval_reward(eval_driver, agent_states)
                     obs, h_t, _ = eval_driver.reset()
-            agent_states = torch.stack(agent_states, dim=0)
 
-            # compute reward
-            expert_states = expert_states['state'][..., :self.config.h_dim]
-            reward = torch.sum(expert_states * agent_states, dim=-1)
-            reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(agent_states, dim=-1)) ** 2)
-            self.eval_info['eval_reward'] += reward.mean() / self.config.eval_eps
-
+        self.eval_info['eval_reward'] = self.eval_info['eval_reward'].mean()
         torch.save(self.agent.state_dict(), self.writer.log_dir + f'/../models/agent_{step}.pt')
         eval_driver.turn_off_visualization()
+
+    def _calculate_eval_reward(self, eval_driver, agent_states):
+        # skip this if agent states is empty
+        if len(agent_states) == 0:
+            return []
+
+        # get corresponding expert states
+        init_row = eval_driver.get_init_row() + 1
+        expert_data = {k: v[init_row:init_row + self.config.eval_steps] for k, v in self.expert_eval_data.items()}
+        expert_states = self.agent.encode_expert_data(expert_data)['state'][..., :self.config.h_dim]
+
+        # compute reward
+        agent_states = torch.stack(agent_states, dim=0)
+        expert_states = expert_states[:agent_states.shape[0]]
+        reward = torch.sum(expert_states * agent_states, dim=-1)
+        reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(agent_states, dim=-1)) ** 2)
+
+        # rewards are appended like this to we can weight them by the number of steps
+        self.eval_info['eval_reward'] = torch.cat((self.eval_info['eval_reward'], reward))
+        return []  # reset agent states

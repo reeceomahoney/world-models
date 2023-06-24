@@ -60,17 +60,19 @@ class Agent(torch.nn.Module):
     # --------------------------------------------------------------------------------------------------------------
     # Environment interaction
 
-    def __call__(self, h_t, obs):
+    def __call__(self, h_t, obs, deterministic=False):
         with torch.no_grad():
             obs = common.symlog(torch.Tensor(obs).to(self.device))
             z_t = self.world_model.encode(h_t, obs)
             action = self.actor(torch.cat((h_t, z_t), dim=-1)).sample()
+            if deterministic:
+                action = self.actor(torch.cat((h_t, z_t), dim=-1)).mode
             h_t1 = self.world_model.forward(h_t, z_t, action)
         return h_t1, action
 
     def predict(self, h_t, obs):
         with torch.no_grad():
-            h_t1, action = self(h_t, obs)
+            h_t1, action = self(h_t, obs, deterministic=True)
             z_t1 = self.world_model.dynamics(h_t1)
             obs_1, reward_1, cont_1 = self.world_model.predict(torch.cat((h_t1, z_t1), dim=-1))
         return (obs_1, reward_1, cont_1), h_t1, action
@@ -97,7 +99,7 @@ class Agent(torch.nn.Module):
     def ditto_step(self, replay):
         expert_sample = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)
         expert_sample['state'][..., :self.config.h_dim] += \
-            torch.randn_like(expert_sample['state'][..., :self.config.h_dim]) * self.config.latent_noise_factor * 0.572
+            torch.randn_like(expert_sample['state'][..., :self.config.h_dim]) * self.config.latent_noise_factor * 0.44
         self.expert_actions = expert_sample['action']
 
         if self.config.ditto_state == 'logits':
@@ -126,7 +128,7 @@ class Agent(torch.nn.Module):
     # --------------------------------------------------------------------------------------------------------------
     # World Model
 
-    def train_world_model(self, replay):
+    def train_world_model(self, replay, train=True):
         # (seq_length, batch_size, obs_dim)
         data = next(replay)
         h_init = self._init_deter(data['obs'].shape[1]) if replay.idx == 1 else self.h_last
@@ -145,10 +147,11 @@ class Agent(torch.nn.Module):
         loss = pred_loss + dyn_loss + repr_loss
 
         # update weights
-        self.world_model_optim.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), self.config.model_grad_clip)
-        self.world_model_optim.step()
+        if train:
+            self.world_model_optim.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), self.config.model_grad_clip)
+            self.world_model_optim.step()
 
         info = {'pred_loss': pred_loss.item(), 'kl_loss': (dyn_loss + repr_loss).item()}
         return data, states, info
