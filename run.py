@@ -1,5 +1,4 @@
 import argparse
-from collections import OrderedDict
 from pathlib import Path
 
 import torch
@@ -19,7 +18,8 @@ args = parser.parse_args()
 home_path = Path(__file__).parent.absolute()
 agent_path = home_path / args.agent
 
-config, config_dict = common.init_config(Path(agent_path).parents[1] / 'config.yaml', args)
+config, config_dict = common.init_config(
+    Path(agent_path).parents[1] / 'config.yaml', args)
 
 if config.env_name == 'raisim':
     env_driver = common.RaisimDriver(config, config_dict)
@@ -28,10 +28,6 @@ else:
     env_driver = common.GymDriver(config, render=True)
 
 agent_state_dict = torch.load(agent_path, map_location=config.device)
-
-# backwards compatibility (remember to comment out ensemble)
-# old_name = lambda key: key.startswith('actor') or key.startswith('critic') or key.startswith('slow')
-# agent_state_dict = OrderedDict([('task_' + k, v) if old_name(k) else (k, v) for k, v in agent_state_dict.items()])
 
 agent = Agent(*env_driver.env_info(), config)
 agent.load_state_dict(agent_state_dict, strict=False)

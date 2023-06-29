@@ -35,7 +35,8 @@ def main(config, env_driver, agent, expert_sampler, logger):
         if should_eval(step):
             latent_sampler = encode_and_store(agent, expert_sampler)
             visualize_wm(agent, env_driver, latent_sampler)
-            torch.save(agent.state_dict(), f'{logger.writer.log_dir}/../models/wm_{step}.pt')
+            torch.save(agent.state_dict(),
+                       f'{logger.writer.log_dir}/../models/wm_{step}.pt')
 
     print('\nimitation learning...')
     latent_sampler = encode_and_store(agent, expert_sampler)

@@ -24,7 +24,8 @@ args = parser.parse_args()
 home_path = Path(__file__).parent.absolute()
 config_path = home_path / 'world_models/config.yaml'
 config, config_dict = common.init_config(config_path, args)
-expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset / 'expert.npy'
+expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset \
+    / 'expert.npy'
 print(f'using expert data: {config.ditto_dataset}')
 
 # env
@@ -35,25 +36,37 @@ print(f'using device: {config.device}')
 obs_dim, act_dim = env_driver.env_info()[:2]
 agent = Agent(*env_driver.env_info(), config)
 if args.agent is not None:
-    agent_state_dict = torch.load(home_path / args.agent, map_location=config.device)
-    # These are for loading wms different to the current model, uncomment if needed
-    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'actor' not in k])
-    # agent_state_dict = OrderedDict([(k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
+    agent_state_dict = torch.load(home_path / args.agent,
+                                  map_location=config.device)
+    change_actor_critic = False
+    if change_actor_critic:
+        # These are for loading networks different to the current wm,
+        # change bool if needed
+        agent_state_dict = OrderedDict([
+            (k, v) for k, v in agent_state_dict.items() if 'actor' not in k])
+        agent_state_dict = OrderedDict([
+            (k, v) for k, v in agent_state_dict.items() if 'critic' not in k])
     agent.load_state_dict(agent_state_dict, strict=False)
 
 # replay buffer
 if args.replay is None:
     if args.ditto:
-        expert_data = common.load_expert_data(expert_path, obs_dim, config.device)
+        expert_data = common.load_expert_data(expert_path, obs_dim,
+                                              config.device)
         expert_sampler = common.ExpertSampler(config, expert_data)
 
         expert_eval_path = expert_path.parent / 'expert_eval.npy'
-        expert_eval_data = common.load_expert_data(expert_eval_path, obs_dim, config.device)
+        expert_eval_data = common.load_expert_data(expert_eval_path, obs_dim,
+                                                   config.device)
         del expert_eval_data['cont']
 
-        logger = common.DittoLogger(config, agent, env_driver, expert_sampler, expert_eval_data)
+        logger = common.DittoLogger(config, agent, env_driver, expert_sampler,
+                                    expert_eval_data)
     else:
-        replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim})])
+        replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim,
+                                                      'reward': 1,
+                                                      'cont': 1,
+                                                      'action': act_dim})])
         logger = common.Logger(config, agent, env_driver, replays[0])
 else:
     with open(home_path / args.replay, 'rb') as handle:

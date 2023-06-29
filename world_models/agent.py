@@ -23,31 +23,45 @@ class Agent(torch.nn.Module):
 
         if config.critic_model == 'Gaussian':
             self.task_critic = common.GaussianMLP(config)
-            self.task_slow_critic = common.GaussianMLP(config).requires_grad_(False)
+            self.task_slow_critic = common.GaussianMLP(
+                config).requires_grad_(False)
             self.expl_critic = common.GaussianMLP(config)
-            self.expl_slow_critic = common.GaussianMLP(config).requires_grad_(False)
+            self.expl_slow_critic = common.GaussianMLP(
+                config).requires_grad_(False)
         elif config.critic_model == 'TwoHot':
             self.task_critic = common.TwoHotSymlogMLP(config)
-            self.task_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
+            self.task_slow_critic = common.TwoHotSymlogMLP(
+                config).requires_grad_(False)
             self.expl_critic = common.TwoHotSymlogMLP(config)
-            self.expl_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
+            self.expl_slow_critic = common.TwoHotSymlogMLP(
+                config).requires_grad_(False)
 
         # training
         wm_opt = {'eps': config.model_eps, 'weight_decay': config.weight_decay}
         ac_opt = {'eps': config.ac_eps, 'weight_decay': config.weight_decay}
 
-        self.world_model_optim = torch.optim.Adam(self.world_model.parameters(), config.model_lr, **wm_opt)
-        self.ensemble_optim = torch.optim.Adam(self.ensemble.parameters(), config.model_lr, **wm_opt)
+        self.world_model_optim = torch.optim.Adam(
+            self.world_model.parameters(), config.model_lr, **wm_opt)
+        self.ensemble_optim = torch.optim.Adam(
+            self.ensemble.parameters(), config.model_lr, **wm_opt)
 
-        self.expl_actor_optim = torch.optim.Adam(self.expl_actor.parameters(), config.actor_lr, **ac_opt)
-        self.expl_critic_optim = torch.optim.Adam(self.expl_critic.parameters(), config.critic_lr, **ac_opt)
+        self.expl_actor_optim = torch.optim.Adam(
+            self.expl_actor.parameters(), config.actor_lr, **ac_opt)
+        self.expl_critic_optim = torch.optim.Adam(
+            self.expl_critic.parameters(), config.critic_lr, **ac_opt)
 
-        self.task_actor_optim = torch.optim.Adam(self.task_actor.parameters(), config.actor_lr, **ac_opt)
-        self.task_critic_optim = torch.optim.Adam(self.task_critic.parameters(), config.critic_lr, **ac_opt)
+        self.task_actor_optim = torch.optim.Adam(
+            self.task_actor.parameters(), config.actor_lr, **ac_opt)
+        self.task_critic_optim = torch.optim.Adam(
+            self.task_critic.parameters(), config.critic_lr, **ac_opt)
 
         self._updates = 0
         self.actor, self.actor_optim = None, None
         self.critic, self.slow_critic, self.critic_optim = None, None, None
+
+        self.states, self.states_logits, self.rewards = None, None, None
+        self.action, self.action_log_probs = None, None
+        self.gammas, self.weights = None, None
 
         # ditto
         self.expert_states, self.expert_actions, self.h_last = None, None, None
@@ -74,7 +88,8 @@ class Agent(torch.nn.Module):
         with torch.no_grad():
             h_t1, action = self(h_t, obs, deterministic=True)
             z_t1 = self.world_model.dynamics(h_t1)
-            obs_1, reward_1, cont_1 = self.world_model.predict(torch.cat((h_t1, z_t1), dim=-1))
+            obs_1, reward_1, cont_1 = self.world_model.predict(
+                torch.cat((h_t1, z_t1), dim=-1))
         return (obs_1, reward_1, cont_1), h_t1, action
 
     # --------------------------------------------------------------------------------------------------------------
@@ -88,7 +103,10 @@ class Agent(torch.nn.Module):
 
         if should_train:
             data, states, rssm_info = self.train_world_model(replay)
-            ensemble_info = self._train_ensemble(data, states) if self.config.Plan2Explore else {'ensemble_loss': 0}
+            if self.config.Plan2Explore:
+                ensemble_info = self._train_ensemble(data, states)
+            else:
+                ensemble_info = {}
 
             states = torch.flatten(states['state'], 0, 1).detach()
             ac_info = self._train_actor_critic(states)
@@ -97,14 +115,17 @@ class Agent(torch.nn.Module):
             return {}
 
     def ditto_step(self, replay):
-        expert_sample = replay.sample(self.config.ditto_batch_size, self.config.imag_horizon + 1)
+        expert_sample = replay.sample(self.config.ditto_batch_size,
+                                      self.config.imag_horizon + 1)
         expert_sample['state'][..., :self.config.h_dim] += \
-            torch.randn_like(expert_sample['state'][..., :self.config.h_dim]) * self.config.latent_noise_factor * 0.44
+            self.config.latent_noise_factor * 0.44 * torch.randn_like(
+                expert_sample['state'][..., :self.config.h_dim])
         self.expert_actions = expert_sample['action']
 
         if self.config.ditto_state == 'logits':
-            self.expert_states = torch.cat((expert_sample['state'][..., :self.config.h_dim],
-                                            expert_sample['post']), dim=-1)
+            self.expert_states = torch.cat((
+                expert_sample['state'][..., :self.config.h_dim],
+                expert_sample['post']), dim=-1)
         else:
             self.expert_states = expert_sample['state']
 
@@ -117,8 +138,11 @@ class Agent(torch.nn.Module):
         h_init = self._init_deter(data['obs'].shape[1])
 
         if self.config.ditto_state == 'logits':
-            states = self._encode_data(data, h_init, {'state': [], 'post': []})[0]
-            states['state'] = torch.cat((states['state'][..., :self.config.h_dim], states['post']), dim=-1)
+            states = self._encode_data(data, h_init,
+                                       {'state': [], 'post': []})[0]
+            states['state'] = torch.cat((
+                states['state'][..., :self.config.h_dim],
+                states['post']), dim=-1)
         else:
             states = self._encode_data(data, h_init, {'state': []})[0]
 
@@ -129,31 +153,35 @@ class Agent(torch.nn.Module):
     # World Model
 
     def train_world_model(self, replay, train=True):
-        # (seq_length, batch_size, obs_dim)
         data = next(replay)
-        h_init = self._init_deter(data['obs'].shape[1]) if replay.idx == 1 else self.h_last
+        if replay.idx == 1:
+            h_init = self._init_deter(data['obs'].shape[1])
+        else:
+            h_init = self.h_last
 
-        states, h_last = self._encode_data(data, h_init, {'state': [], 'post': [], 'prior': []})
+        states, h_last = self._encode_data(
+            data, h_init, {'state': [], 'post': [], 'prior': []})
         self.h_last = h_last.detach()
 
-        # kl divergences
-        d = common.CategoricalDist
-        kl = lambda x, y: torch.clip(D.kl.kl_divergence(x.dist, y.dist), min=1.0)
-
         # losses
+        d = common.CategoricalDist
         pred_loss = -self.world_model.log_probs(data, states['state']).mean()
-        dyn_loss = self.config.beta_dyn * kl(d(states['post'].detach()), d(states['prior'])).mean()
-        repr_loss = self.config.beta_repr * kl(d(states['post']), d(states['prior'].detach())).mean()
+        dyn_loss = self.config.beta_dyn * self.kl_div(
+            d(states['post'].detach()), d(states['prior'])).mean()
+        repr_loss = self.config.beta_repr * self.kl_div(
+            d(states['post']), d(states['prior'].detach())).mean()
         loss = pred_loss + dyn_loss + repr_loss
 
         # update weights
         if train:
             self.world_model_optim.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), self.config.model_grad_clip)
+            torch.nn.utils.clip_grad_norm_(self.world_model.parameters(),
+                                           self.config.model_grad_clip)
             self.world_model_optim.step()
 
-        info = {'pred_loss': pred_loss.item(), 'kl_loss': (dyn_loss + repr_loss).item()}
+        info = {'pred_loss': pred_loss.item(),
+                'kl_loss': (dyn_loss + repr_loss).item()}
         return data, states, info
 
     def _encode_data(self, data, h_init, states):
@@ -164,7 +192,8 @@ class Agent(torch.nn.Module):
             obs = data['obs'][t]
             post, prior = self.world_model.get_z_dists(h_t, obs)
             z_t = post.sample()
-            latents = {'state': torch.cat((h_t, z_t), dim=-1), 'post': post.logits, 'prior': prior.logits}
+            latents = {'state': torch.cat((h_t, z_t), dim=-1),
+                       'post': post.logits, 'prior': prior.logits}
             for k, v in latents.items():
                 if k in states:
                     states[k].append(v)
@@ -183,13 +212,15 @@ class Agent(torch.nn.Module):
 
         actions = data['action'][:, :self.config.ensemble_size]
         states = states['state'][:, :self.config.ensemble_size].detach()
-        pred_states = self.ensemble(torch.cat((states[:-1], actions[:-1]), dim=-1))
+        pred_states = self.ensemble(torch.cat((states[:-1],
+                                               actions[:-1]), dim=-1))
         loss = (pred_states - states[1:]).square().mean()
 
         # update weights
         self.ensemble_optim.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.ensemble.parameters(), self.config.model_grad_clip)
+        torch.nn.utils.clip_grad_norm_(self.ensemble.parameters(),
+                                       self.config.model_grad_clip)
         self.ensemble_optim.step()
 
         self.world_model.requires_grad_(True)
@@ -217,49 +248,56 @@ class Agent(torch.nn.Module):
             log_prob = actor.log_prob(act_t.detach())
 
             # for ditto
-            states_logits_t = self.world_model.dynamics_logits(states_t[..., :self.config.h_dim])
-            states_logits.append(torch.cat((states_t[..., :self.config.h_dim], states_logits_t), dim=-1))
+            states_logits_t = self.world_model.dynamics_logits(
+                states_t[..., :self.config.h_dim])
+            states_logits.append(torch.cat((
+                states_t[..., :self.config.h_dim], states_logits_t), dim=-1))
 
             states.append(states_t)
             actions.append(act_t)
             action_log_probs.append(log_prob)
 
-            info['entropy'] += actor.entropy().mean() / self.config.imag_horizon
-            info['act_size'] += act_t.square().mean() / self.config.imag_horizon
-            info['act_std'] += actor.stddev.mean() / self.config.imag_horizon
+            info['entropy'] += actor.entropy().mean() / \
+                self.config.imag_horizon
+            info['act_size'] += act_t.square().mean() / \
+                self.config.imag_horizon
+            info['act_std'] += actor.stddev.mean() / \
+                self.config.imag_horizon
 
-        states = torch.stack(states, dim=0)
-        actions = torch.stack(actions, dim=0)
-        action_log_probs = torch.stack(action_log_probs, dim=0).unsqueeze(-1)
-
-        states_logits = torch.stack(states_logits, dim=0)
+        self.states = torch.stack(states, dim=0)
+        self.actions = torch.stack(actions, dim=0)
+        self.action_log_probs = torch.stack(
+            action_log_probs, dim=0).unsqueeze(-1)
+        self.states_logits = torch.stack(states_logits, dim=0)
 
         # mean distance between agent and expert actions
-        act_diff = torch.norm(actions - self.expert_actions[1:], dim=-1).mean()
+        act_diff = torch.norm(self.actions - self.expert_actions[1:],
+                              dim=-1).mean()
 
         # calculate rewards
         if self.config.Plan2Explore:
-            rewards = self.ensemble.get_variance(torch.cat((states, actions), dim=-1))
+            self.rewards = self.ensemble.get_variance(
+                torch.cat((states, actions), dim=-1))
         elif self.config.ditto:
-            ditto_states = states_logits if self.config.ditto_state == 'logits' else states
-            rewards = self._calculate_ditto_rewards(ditto_states)
+            self._calculate_ditto_rewards()
         else:
-            rewards = self.world_model.reward(states)
+            self.rewards = self.world_model.reward(states)
 
-        # calculate gammas and weights
-        gammas, weights = self._calculate_gammas(states, rewards)
+        self._calculate_gammas()
 
-        # calculate value targets
-        policy_loss, entropy_loss, value_targets = self._calculate_policy_loss(
-            states, action_log_probs, rewards, gammas, weights, info['entropy'])
-        value_loss, values = self._calculate_value_loss(states, value_targets, weights)
+        # calculate losses
+        policy_loss, value_targets = self._calculate_policy_loss()
+        value_loss, values = self._calculate_value_loss(value_targets)
+        entropy_loss = self.config.entropy_coeff * info['entropy']
         loss = policy_loss + value_loss - entropy_loss
 
         self.actor_optim.zero_grad()
         self.critic_optim.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.config.ac_grad_clip)
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.config.ac_grad_clip)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(),
+                                       self.config.ac_grad_clip)
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(),
+                                       self.config.ac_grad_clip)
         self.actor_optim.step()
         self.critic_optim.step()
 
@@ -269,21 +307,22 @@ class Agent(torch.nn.Module):
 
         return {'policy_loss': policy_loss,
                 'value_loss': value_loss,
-                'imag_reward': rewards.mean(),
+                'imag_reward': self.rewards.mean(),
                 'imag_values': values.mean(),
                 'imag_value_targets': value_targets.mean(),
-                'reward_ema': {'05': self.reward_ema.values[0], '95': self.reward_ema.values[1]},
+                'reward_ema': {'05': self.reward_ema.values[0],
+                               '95': self.reward_ema.values[1]},
                 'act_diff': act_diff,
                 **info}
 
-    def _calculate_policy_loss(self, states, action_log_probs, rewards, gammas, weights, entropy):
+    def _calculate_policy_loss(self):
         self.critic.requires_grad_(False)
 
         value_targets = []
         if self.config.critic_update == 'hard':
-            values = self.slow_critic(states).mode()
+            values = self.slow_critic(self.states).mode()
         elif self.config.critic_update == 'soft':
-            values = self.critic(states).mode()
+            values = self.critic(self.states).mode()
         else:
             raise NotImplementedError
 
@@ -291,8 +330,9 @@ class Agent(torch.nn.Module):
             if t == self.config.imag_horizon - 2:
                 target = values[t + 1]
             else:
-                target = (1 - self.config.lam) * values[t + 1] + self.config.lam * value_targets[-1]
-            value_targets.append(rewards[t] + gammas[t] * target)
+                target = (1 - self.config.lam) * values[t + 1] + \
+                    self.config.lam * value_targets[-1]
+            value_targets.append(self.rewards[t] + self.gammas[t] * target)
 
         value_targets = torch.stack(value_targets[::-1], dim=0)
         offset, scale = self.reward_ema(value_targets)
@@ -303,47 +343,56 @@ class Agent(torch.nn.Module):
         if self.config.policy_gradient == 'dynamics':
             actor_target = adv
         elif self.config.policy_gradient == 'reinforce':
-            actor_target = action_log_probs[:-1] * adv.detach()
+            actor_target = self.action_log_probs[:-1] * adv.detach()
         else:
-            raise NotImplementedError(f'Unknown policy gradient: {self.config.policy_gradient}')
+            raise NotImplementedError(
+                f'Unknown policy gradient: {self.config.policy_gradient}')
 
-        policy_loss = -(weights[:-1] * actor_target).mean()
-        entropy_loss = self.config.entropy_coeff * entropy
+        policy_loss = -(self.weights[:-1] * actor_target).mean()
 
         self.critic.requires_grad_(True)
-        return policy_loss, entropy_loss, value_targets
+        return policy_loss, value_targets
 
-    def _calculate_value_loss(self, states, value_targets, weights):
+    def _calculate_value_loss(self, value_targets):
         self.actor.requires_grad_(False)
 
-        values = self.critic(states[:-1].detach())
+        values = self.critic(self.states[:-1].detach())
         value_loss = -values.log_prob(value_targets.detach())
         if self.config.critic_update == 'soft':
-            slow_critic = self.slow_critic(states[:-1].detach())
+            slow_critic = self.slow_critic(self.states[:-1].detach())
             value_loss -= values.log_prob(slow_critic.mode().detach())
-        value_loss = (weights[:-1] * value_loss.unsqueeze(-1)).mean()
+        value_loss = (self.weights[:-1] * value_loss.unsqueeze(-1)).mean()
 
         self.actor.requires_grad_(True)
         return value_loss, values.mode()
 
     def _update_slow_critic(self):
-        if self.config.critic_update == 'hard' and self._updates % self.config.critic_update_freq == 0:
-            self.slow_critic.load_state_dict(self.critic.state_dict())
+        if self.config.critic_update == 'hard':
+            if self._updates % self.config.critic_update_freq == 0:
+                self.slow_critic.load_state_dict(self.critic.state_dict())
         elif self.config.critic_update == 'soft':
             mix = self.config.critic_update_fraction
-            for s, d in zip(self.critic.parameters(), self.slow_critic.parameters()):
+            for s, d in zip(self.critic.parameters(),
+                            self.slow_critic.parameters()):
                 d.data = mix * s.data + (1 - mix) * d.data
         self._updates += 1
 
-    def _calculate_ditto_rewards(self, states):
+    def _calculate_ditto_rewards(self):
+        if self.config.ditto_state == 'logits':
+            states = self.states_logits
+        else:
+            states = self.states
+
         if self.config.ditto_state == 'deter':
             expert_states = self.expert_states[1:, :, :self.config.h_dim]
             states = states[..., :self.config.h_dim]
         else:
             expert_states = self.expert_states[1:]
+
         reward = torch.sum(expert_states * states, dim=-1)
-        reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(states, dim=-1)) ** 2)
-        return reward.unsqueeze(-1)
+        reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
+                                 torch.norm(states, dim=-1)) ** 2)
+        self.rewards = reward.unsqueeze(-1)
 
     # --------------------------------------------------------------------------------------------------------------
     # Utility
@@ -368,15 +417,21 @@ class Agent(torch.nn.Module):
         elif self.config.init_deter == 'normal':
             return 0.01 * torch.randn((size, self.h_dim)).to(self.device)
         else:
-            raise NotImplementedError(f'Unknown init_deter: {self.config.init_deter}')
+            raise NotImplementedError(
+                f'Unknown init_deter: {self.config.init_deter}')
 
-    def _calculate_gammas(self, states, rewards):
+    def _calculate_gammas(self):
+        # weights are to softly account for episode termination
         if self.config.ditto:
             # cont model isn't use for ditto
-            gammas = self.config.gamma * torch.ones_like(rewards)
-            weights = torch.ones_like(gammas).detach()
+            self.gammas = self.config.gamma * torch.ones_like(self.rewards)
+            self.weights = torch.ones_like(self.gammas).detach()
         else:
-            gammas = self.config.gamma * self.world_model.cont(states)
-            weights = torch.cumprod(gammas, dim=0).detach()  # to account for episode termination
+            self.gammas = self.config.gamma * self.world_model.cont(
+                self.states)
+            self.weights = torch.cumprod(
+                self.gammas, dim=0).detach()
 
-        return gammas, weights
+    @staticmethod
+    def kl_div(x, y):
+        return torch.clip(D.kl.kl_divergence(x.dist, y.dist), min=1.0)

@@ -90,6 +90,9 @@ class ExpertSampler:
         self.data = {k: torch.split(v, config.batch_length, dim=0) for k, v in data.items()}
         self.data_unsplit = data
         self.n_samples = size(data) // config.batch_length
+        self.n_batches = data['obs'].shape[1]
+        self.batch_size = config.ditto_wm_batch_size
+        self.batch_idx = 0
         self.idx = 0
 
     def __iter__(self):
@@ -97,8 +100,9 @@ class ExpertSampler:
 
     def __next__(self):
         if self.idx >= self.n_samples:
+            self.batch_idx = np.random.randint(self.n_batches - self.batch_size)
             self.idx = 0
-        sample = {k: v[self.idx] for k, v in self.data.items()}
+        sample = {k: v[self.idx][:, self.batch_idx:self.batch_idx + self.batch_size, :] for k, v in self.data.items()}
         self.idx += 1
         return sample
 

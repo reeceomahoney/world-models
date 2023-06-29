@@ -1,0 +1,8 @@
+
+remote_host     129.67.95.60
+remote_path     /home/reece/Workspace/Projects/world_models/
+ignore_path     ["build/", "venv/", "*/logs/", "*/expert_data/"]
+ignore_dotfiles 1
+auto_sync_up    1
+remote_or_local remote
+sleep_before_sync 0
