@@ -10,3 +10,5 @@
 */.pytest_cache/
 */.vscode/
 *.pyc
+*.npy
+.vim-arsync
