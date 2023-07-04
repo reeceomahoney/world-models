@@ -1,21 +1,26 @@
 import pickle
+from pathlib import Path
+import time
 
+import numpy as np
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from .driver import *
-from .utils import *
+from .driver import GymDriver
+from .utils import FileSaver, Timer, tensorboard_launcher
 
 
 class Logger:
     def __init__(self, config, agent, env_driver, replay, launch_tb=False):
-        # launch tensorboard
-        home_path = os.path.dirname(os.path.realpath(__file__)) + '/../'
-        saver = FileSaver(log_dir=home_path + "logs/" + config.env_name,
-                          save_items=[home_path + "config.yaml"])
+        # make log dir
+        home_path = Path(__file__).parents[1].absolute()
+        # log_dir = home_path / 'logs' / config.env_name
+        log_dir = Path('/data2/reece/raisim')
+        saver = FileSaver(log_dir, [home_path / 'config.yaml'])
         tensorboard_launcher(saver.data_dir) if launch_tb else None
 
         self.writer = SummaryWriter(log_dir=saver.data_dir, flush_secs=10)
-        os.makedirs(saver.data_dir + '/../datasets')
+        (saver.data_dir / '../datasets').mkdir(parents=True, exist_ok=True)
 
         self.config = config
         self.agent = agent
@@ -54,15 +59,16 @@ class Logger:
 
     def _eval(self, step):
         print('evaluating...')
-        self.eval_info = {'obs_error': 0, 'reward_error': 0, 'cont_error': 0, 'eval_reward': 0}
+        self.eval_info = {'obs_error': 0, 'reward_error': 0,
+                          'cont_error': 0, 'eval_reward': 0}
         if self.config.env_name == 'raisim':
             eval_driver = self.env_driver
             eval_driver.turn_on_visualization()
-            # self._replay.add_episode()
             timer = Timer(self.config.control_dt, self.config.real_time_eval)
         else:
             eval_driver = GymDriver(self.config, render=not self.config.ssh)
-            timer = Timer(0.01 * self.config.action_repeat, self.config.real_time_eval)
+            timer = Timer(0.01 * self.config.action_repeat,
+                          self.config.real_time_eval)
 
         for _ in range(self.config.eval_eps):
             obs, h_t, _ = eval_driver.reset()
@@ -75,11 +81,16 @@ class Logger:
                 if done.any():
                     obs, h_t, _ = eval_driver.reset()
 
-        torch.save(self.agent.state_dict(), self.writer.log_dir + f'/../models/agent_{step}.pt')
+        torch.save(self.agent.state_dict(),
+                   self.writer.log_dir + f'/../models/agent_{step}.pt')
         if self.config.save_datasets:
-            with open(self.writer.log_dir + f'/../datasets/replay_{step}.pickle', 'wb') as f:
+            with open(self.writer.log_dir +
+                      f'/../datasets/replay_{step}.pickle', 'wb') as f:
                 pickle.dump(self._replay, f, protocol=pickle.HIGHEST_PROTOCOL)
-        eval_driver.turn_off_visualization() if self.config.env_name == 'raisim' else eval_driver.close()
+        if self.config.env_name == 'raisim':
+            eval_driver.turn_off_visualization()
+        else:
+            eval_driver.close()
 
     def _update_eval_info(self, obs, reward, done, preds):
         n = self.config.eval_eps * self.config.eval_steps
@@ -93,17 +104,22 @@ class Logger:
         for name in ['pred_loss', 'kl_loss', 'policy_loss', 'value_loss']:
             self._write_scalar(name, 'loss', info, step)
         if self.config.Plan2Explore:
-            self.writer.add_scalar('loss/ensemble_loss', info['ensemble_loss'], step)
+            self.writer.add_scalar('loss/ensemble_loss', info['ensemble_loss'],
+                                   step)
 
         # evaluation
         if eval_step:
-            for name in ['obs_error', 'reward_error', 'cont_error', 'eval_reward']:
+            for name in ['obs_error', 'reward_error', 'cont_error',
+                         'eval_reward', 'eval_reward_std']:
                 self._write_scalar(name, 'evaluation', self.eval_info, step)
 
-            if self.config.env_name == 'raisim' and sum(self.reward_info['linVel']) > 0:  # heuristic
+            if self.config.env_name == 'raisim' and sum(self.reward_info[
+                    'linVel']) > 0:  # heuristic
                 for k in self.reward_info.keys():
-                    self.reward_mean[k] = np.mean(np.array(self.reward_info[k]))
-                    # self.reward_std[k] = np.std(np.array(self.reward_info[k]))
+                    self.reward_mean[k] = np.mean(np.array(
+                        self.reward_info[k]))
+                    # self.reward_std[k] = np.std(np.array(
+                    #     self.reward_info[k]))
             self.writer.add_scalars('rewards/mean', self.reward_mean, step)
             # self.writer.add_scalars('rewards/std', self.reward_std, step)
 
@@ -111,7 +127,8 @@ class Logger:
         for name in ['imag_reward', 'imag_values', 'imag_value_targets']:
             self._write_scalar(name, 'imag', info, step)
         if 'reward_ema' in info:
-            self.writer.add_scalars('imag/reward_ema', info['reward_ema'], step)
+            self.writer.add_scalars('imag/reward_ema',
+                                    info['reward_ema'], step)
 
         # misc
         for name in ['act_std', 'buffer_size', 'act_size', 'act_diff']:
@@ -127,9 +144,11 @@ class Logger:
         print(f"time: {dt:.3f}s")
         print("-----------------------------------------")
         if 'pred_loss' and 'kl_loss' in info:
-            print(f"world model loss: {info['pred_loss']:.3f}  kl loss: {info['kl_loss']:.3f}")
+            print(f"world model loss: {info['pred_loss']:.3f}", end="  ")
+            print(f"kl loss: {info['kl_loss']:.3f}")
         if 'policy_loss' and 'value_loss' in info:
-            print(f"policy loss: {info['policy_loss'].item():.3f}  value loss: {info['value_loss'].item():.3f}")
+            print(f"policy loss: {info['policy_loss'].item():.3f}", end="  ")
+            print(f"value loss: {info['value_loss'].item():.3f}")
 
         if self.config.Plan2Explore:
             print(f"ensemble loss: {info['ensemble_loss'].item():.3f}")
@@ -146,7 +165,10 @@ class DittoLogger(Logger):
 
     def _eval(self, step):
         print('evaluating...')
-        self.eval_info = {'obs_error': 0, 'eval_reward': torch.empty((0, 1)).to(self.config.device)}
+        self.eval_info = {
+            'obs_error': 0,
+            'eval_reward': torch.empty((0, 1)).to(self.config.device),
+            'eval_reward_std': 0}
         eval_driver = self.env_driver
         eval_driver.turn_on_visualization()
         timer = Timer(self.config.control_dt, self.config.real_time_eval)
@@ -154,7 +176,8 @@ class DittoLogger(Logger):
 
         agent_states = []
         for _ in range(self.config.eval_eps):
-            agent_states = self._calculate_eval_reward(eval_driver, agent_states)
+            agent_states = self._calculate_eval_reward(
+                eval_driver, agent_states)
             obs, h_t, _ = eval_driver.reset()
 
             for t in range(self.config.eval_steps):
@@ -165,11 +188,14 @@ class DittoLogger(Logger):
                 agent_states.append(h_t)
                 timer.end()
                 if done.any():
-                    agent_states = self._calculate_eval_reward(eval_driver, agent_states)
+                    agent_states = self._calculate_eval_reward(
+                        eval_driver, agent_states)
                     obs, h_t, _ = eval_driver.reset()
 
+        self.eval_info['eval_reward_std'] = self.eval_info['eval_reward'].std()
         self.eval_info['eval_reward'] = self.eval_info['eval_reward'].mean()
-        torch.save(self.agent.state_dict(), self.writer.log_dir + f'/../models/agent_{step}.pt')
+        torch.save(self.agent.state_dict(),
+                   str(self.writer.log_dir) + f'/../models/agent_{step}.pt')
         eval_driver.turn_off_visualization()
 
     def _calculate_eval_reward(self, eval_driver, agent_states):
@@ -179,15 +205,20 @@ class DittoLogger(Logger):
 
         # get corresponding expert states
         init_row = eval_driver.get_init_row() + 1
-        expert_data = {k: v[init_row:init_row + self.config.eval_steps] for k, v in self.expert_eval_data.items()}
-        expert_states = self.agent.encode_expert_data(expert_data)['state'][..., :self.config.h_dim]
+        expert_data = {k: v[init_row:init_row + self.config.eval_steps]
+                       for k, v in self.expert_eval_data.items()}
+        expert_states = self.agent.encode_expert_data(
+            expert_data)['state'][..., :self.config.h_dim]
 
         # compute reward
         agent_states = torch.stack(agent_states, dim=0)
         expert_states = expert_states[:agent_states.shape[0]]
         reward = torch.sum(expert_states * agent_states, dim=-1)
-        reward /= (torch.maximum(torch.norm(expert_states, dim=-1), torch.norm(agent_states, dim=-1)) ** 2)
+        reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
+                                 torch.norm(agent_states, dim=-1)) ** 2)
 
-        # rewards are appended like this to we can weight them by the number of steps
-        self.eval_info['eval_reward'] = torch.cat((self.eval_info['eval_reward'], reward))
+        # rewards are appended like this to we can weight them by the
+        # number of steps
+        self.eval_info['eval_reward'] = torch.cat((
+            self.eval_info['eval_reward'], reward))
         return []  # reset agent states

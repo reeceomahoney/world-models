@@ -1,3 +1,5 @@
+import os
+
 import gymnasium as gym
 import world_models.raisim_gym as raisim_gym
 from ruamel.yaml import dump, RoundTripDumper

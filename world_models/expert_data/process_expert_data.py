@@ -25,7 +25,7 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = 'rand_start_eps_2'
+data_dir = 'rand_start_eps_3'
 obs_dim = 49
 eval_eps = 50
 
@@ -33,9 +33,12 @@ eval_eps = 50
 # states = read_bag(data_dir, 'expert', ['state_and_action'])[0]
 # states = states.to_numpy()[::16, 3:].astype(np.float32)
 
-states = pd.read_csv(
-    f'{data_dir}/expert.csv').to_numpy()[::16].astype(np.float32)
-states = states.reshape(-1, 200, obs_dim).swapaxes(0, 1)
+# states = pd.read_csv(
+#     f'{data_dir}/expert.csv').to_numpy()[::16].astype(np.float32)
+states = np.load(f'{data_dir}/expert_raw.npy')
+states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
+print(states.shape)
+states = states.reshape(200, -1, obs_dim)
 states = states[:-(states.shape[0] % 64)]  # must be divisible by 64
 print(f'Expert data shape: {states.shape}')
 
@@ -45,7 +48,7 @@ init_data[..., 2] = states[:, -eval_eps:, 0]  # height
 init_data[..., 3] = 1  # orientation
 init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles
 init_data[..., 19:37] = states[:, -eval_eps:, 16:34]  # joint velocities
-init_data[..., 37:49] = states[:, -eval_eps:, 37:49]  # actions
+init_data[..., -12:] = states[:, -eval_eps:, -12:]  # actions
 
 # save data
 init_data = init_data.reshape(-1, obs_dim)

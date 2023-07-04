@@ -85,9 +85,11 @@ class ExpertSampler:
      Sequential sampler for the expert data.
     """
     def __init__(self, config, data):
-        assert size(data) % config.batch_length == 0, "Number of samples must be divisible by batch length"
+        assert size(data) % config.batch_length == 0, \
+            "Number of samples must be divisible by batch length"
 
-        self.data = {k: torch.split(v, config.batch_length, dim=0) for k, v in data.items()}
+        self.data = {k: torch.split(v, config.batch_length, dim=0)
+                     for k, v in data.items()}
         self.data_unsplit = data
         self.n_samples = size(data) // config.batch_length
         self.n_batches = data['obs'].shape[1]
@@ -100,14 +102,20 @@ class ExpertSampler:
 
     def __next__(self):
         if self.idx >= self.n_samples:
-            self.batch_idx = np.random.randint(self.n_batches - self.batch_size)
+            self.batch_idx = np.random.randint(
+                self.n_batches - self.batch_size)
             self.idx = 0
-        sample = {k: v[self.idx][:, self.batch_idx:self.batch_idx + self.batch_size, :] for k, v in self.data.items()}
+        end_idx = self.batch_idx + self.batch_size
+        sample = {k: v[self.idx][:, self.batch_idx:end_idx, :]
+                  for k, v in self.data.items()}
         self.idx += 1
         return sample
 
     def get_all(self):
         return self.data_unsplit
+
+    def get_slice(self, start, end):
+        return {k: v[:, start:end] for k, v in self.data_unsplit.items()}
 
 
 class LatentSampler:
@@ -123,6 +131,8 @@ class LatentSampler:
 
     def sample(self, batch_size, batch_length):
         idx = torch.randint(self.n_samples, (batch_size,))
-        start = torch.randint(self.len_samples - batch_length + 1, (batch_size,))
+        start = torch.randint(self.len_samples - batch_length + 1,
+                              (batch_size,))
         end = start + batch_length
-        return {k: v[s:e, idx] for s, e in zip(start, end) for k, v in self.data.items()}
+        return {k: v[s:e, idx] for s, e in zip(start, end)
+                for k, v in self.data.items()}

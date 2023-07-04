@@ -1,10 +1,8 @@
-import ntpath
-import os
 import sys
 import time
 import webbrowser
 from datetime import datetime
-from shutil import copyfile
+from shutil import copy
 
 import numpy as np
 import torch
@@ -21,14 +19,14 @@ class Config:
 
 class FileSaver:
     def __init__(self, log_dir, save_items):
-        self._data_dir = log_dir + '/' + datetime.now().strftime('%b-%d_%H-%M-%S') + '/logging'
-        os.makedirs(self._data_dir)
-        os.makedirs(self._data_dir + '/../models')
+        self._data_dir = log_dir / \
+            datetime.now().strftime('%b-%d_%H-%M-%S') / 'logging'
+        self._data_dir.mkdir(parents=True, exist_ok=True)
+        (self._data_dir / '../models').mkdir(parents=True, exist_ok=True)
 
         if save_items is not None:
             for save_item in save_items:
-                base_file_name = ntpath.basename(save_item)
-                copyfile(save_item, self._data_dir + '/../' + base_file_name)
+                copy(str(save_item), str(self._data_dir / '..'))
 
     @property
     def data_dir(self):
@@ -111,7 +109,8 @@ def init_config(config_path, args):
             config_dict[key] = value
 
     # debug mode
-    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and 'debug' in full_config_dict:
+    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and \
+            'debug' in full_config_dict:
         print('debug mode')
         for key, value in full_config_dict['debug'].items():
             config_dict[key] = value
@@ -119,7 +118,8 @@ def init_config(config_path, args):
     config = Config(config_dict)
     config.time_limit //= config.action_repeat
     config.eval_steps //= config.action_repeat
-    config.train_every = (config.batch_length * config.batch_size) // config.train_ratio
+    config.train_every = (config.batch_length * config.batch_size) // \
+        config.train_ratio
 
     return config, config_dict
 
@@ -148,4 +148,3 @@ def load_expert_data(path, obs_dim, device):
     action = expert_data[..., obs_dim:]
     cont = torch.ones((*action.shape[:2], 1)).to(device)
     return {'obs': obs, 'cont': cont, 'action': action}
-
