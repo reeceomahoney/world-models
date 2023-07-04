@@ -117,8 +117,10 @@ class Agent(torch.nn.Module):
     def ditto_step(self, replay):
         expert_sample = replay.sample(self.config.ditto_batch_size,
                                       self.config.imag_horizon + 1)
+
+        # add noise to expert states, 0.5 is a typical dataset std
         expert_sample['state'][..., :self.config.h_dim] += \
-            self.config.latent_noise_factor * 0.44 * torch.randn_like(
+            self.config.latent_noise_factor * 0.5 * torch.randn_like(
                 expert_sample['state'][..., :self.config.h_dim])
         self.expert_actions = expert_sample['action']
 
@@ -134,18 +136,29 @@ class Agent(torch.nn.Module):
     def encode_expert_data(self, replay):
         self.world_model.requires_grad_(False)
 
-        data = replay if type(replay) == dict else replay.get_all()
-        h_init = self._init_deter(data['obs'].shape[1])
+        # data = replay if type(replay) == dict else replay.get_all()
+        # h_init = self._init_deter(data['obs'].shape[1])
 
-        if self.config.ditto_state == 'logits':
-            states = self._encode_data(data, h_init,
-                                       {'state': [], 'post': []})[0]
-            states['state'] = torch.cat((
-                states['state'][..., :self.config.h_dim],
-                states['post']), dim=-1)
-        else:
-            states = self._encode_data(data, h_init, {'state': []})[0]
+        eps = 9550
+        encode_batch_size = 955
+        states = []
+        for i in range(eps // encode_batch_size):
+            data_batch = replay.get_slice(i * encode_batch_size,
+                                          (i + 1) * encode_batch_size)
+            h_init = self._init_deter(encode_batch_size)
 
+            if self.config.ditto_state == 'logits':
+                states = self._encode_data(data_batch, h_init,
+                                           {'state': [], 'post': []})[0]
+                states['state'] = torch.cat((
+                    states['state'][..., :self.config.h_dim],
+                    states['post']), dim=-1)
+            else:
+                states.append(self._encode_data(data_batch, h_init,
+                                                {'state': []})[0])
+
+        states = {k: torch.cat([s[k] for s in states], dim=1)
+                  for k in states[0]}
         self.world_model.requires_grad_(True)
         return states
 
