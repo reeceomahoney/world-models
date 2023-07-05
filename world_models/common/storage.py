@@ -88,9 +88,8 @@ class ExpertSampler:
         assert size(data) % config.batch_length == 0, \
             "Number of samples must be divisible by batch length"
 
-        self.data = {k: torch.split(v, config.batch_length, dim=0)
-                     for k, v in data.items()}
-        self.data_unsplit = data
+        self.data = data
+        self.batch_length = config.batch_length
         self.n_samples = size(data) // config.batch_length
         self.n_batches = data['obs'].shape[1]
         self.batch_size = config.ditto_wm_batch_size
@@ -106,16 +105,14 @@ class ExpertSampler:
                 self.n_batches - self.batch_size)
             self.idx = 0
         end_idx = self.batch_idx + self.batch_size
-        sample = {k: v[self.idx][:, self.batch_idx:end_idx, :]
-                  for k, v in self.data.items()}
+        samples = {k: v[self.idx*self.batch_length:
+                        (self.idx+1)*self.batch_length, self.batch_idx:end_idx]
+                   for k, v in self.data.items()}
         self.idx += 1
-        return sample
-
-    def get_all(self):
-        return self.data_unsplit
+        return samples
 
     def get_slice(self, start, end):
-        return {k: v[:, start:end] for k, v in self.data_unsplit.items()}
+        return {k: v[:, start:end] for k, v in self.data.items()}
 
 
 class LatentSampler:

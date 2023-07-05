@@ -78,8 +78,7 @@ raisim:
   add_velocity_noise: False
   action_clip: 1
   random_init_state: False
-  expert_init_state: False
-  # TODO: fix rand_3 init data (+ height) using rand_2 init for now
+  expert_init_state: True
   reward:
     linVel: 4
     angVel: 2
@@ -93,7 +92,7 @@ raisim:
 ditto:
   ditto_dataset: 'rand_start_eps_3'
   ditto_wm_steps: 5e5
-  ditto_wm_eval_every: 2e4
+  ditto_wm_eval_every: 1e4
   ditto_il_steps: 1e8
   ditto_wm_batch_size: 512
   ditto_batch_size: 512
