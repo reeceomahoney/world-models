@@ -133,15 +133,18 @@ class Agent(torch.nn.Module):
 
         return self._train_actor_critic(self.expert_states[0])
 
-    def encode_expert_data(self, replay):
+    def encode_expert_data(self, replay, eval=False):
         self.world_model.requires_grad_(False)
 
         if type(replay) == dict:
+            # for evaluation
             data = replay
             h_init = self._init_deter(data['obs'].shape[1])
             states = self._encode_data(data, h_init, {'state': []})[0]
         else:
-            eps = 9950
+            # for training
+            # not enough memory to encode all data at once during visualization
+            eps = 9950 // 2 if eval else 9950
             encode_batch_size = 995
             states = []
 
@@ -157,11 +160,14 @@ class Agent(torch.nn.Module):
                         states['state'][..., :self.config.h_dim],
                         states['post']), dim=-1)
                 else:
-                    states.append(self._encode_data(data_batch, h_init,
-                                                    {'state': []})[0])
+                    state = self._encode_data(data_batch, h_init,
+                                              {'state': []})[0]
+                    state = {k: v.to('cpu') for k, v in state.items()}
+                    states.append(state)
 
             states = {k: torch.cat([s[k] for s in states], dim=1)
                       for k in states[0]}
+            states = {k: v.to(self.device) for k, v in states.items()}
 
         self.world_model.requires_grad_(True)
         return states

@@ -3,8 +3,8 @@ import torch
 import world_models.common as common
 
 
-def encode_and_store(agent, expert_sampler):
-    data = agent.encode_expert_data(expert_sampler)
+def encode_and_store(agent, expert_sampler, eval=False):
+    data = agent.encode_expert_data(expert_sampler, eval=eval)
     return common.LatentSampler(data)
 
 
@@ -33,8 +33,8 @@ def main(config, env_driver, agent, expert_sampler, logger):
         logger.log(info, step, should_log(step), False)
 
         if should_eval(step):
-            # latent_sampler = encode_and_store(agent, expert_sampler)
-            # visualize_wm(agent, env_driver, latent_sampler)
+            latent_sampler = encode_and_store(agent, expert_sampler, eval=True)
+            visualize_wm(agent, env_driver, latent_sampler)
             torch.save(agent.state_dict(),
                        f'{logger.writer.log_dir}/../models/wm_{step}.pt')
 
