@@ -37,8 +37,11 @@ eval_eps = 50
 #     f'{data_dir}/expert.csv').to_numpy()[::16].astype(np.float32)
 states = np.load(f'{data_dir}/expert_raw.npy')
 states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
-print(states.shape)
-states = states.reshape(200, -1, obs_dim)
+
+# split into episodes, the swapaxes are necessary to split correctly
+states = states.swapaxes(0, 1)
+states = states.reshape(-1, 200, obs_dim)
+states = states.swapaxes(0, 1)
 states = states[:-(states.shape[0] % 64)]  # must be divisible by 64
 print(f'Expert data shape: {states.shape}')
 
