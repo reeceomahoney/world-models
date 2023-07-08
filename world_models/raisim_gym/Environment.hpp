@@ -98,12 +98,12 @@ class ENVIRONMENT : public RaisimGymEnv {
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
 
     /// load expert data (must run with --ditto True to load config)
-    if (expertInitState_) {
-        auto datasetName = cfg["ditto_dataset"].template As<std::string>();
-        std::cout << "Loading expert data from " << datasetName << std::endl;
-        expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/" + datasetName + "/init_data.csv");
-        datasetSize_ = expertDataset_.rows();
-    }
+    /* if (expertInitState_) { */
+    /*     auto datasetName = cfg["ditto_dataset"].template As<std::string>(); */
+    /*     std::cout << "Loading expert data from " << datasetName << std::endl; */
+    /*     expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/" + datasetName + "/init_data.csv"); */
+    /*     datasetSize_ = expertDataset_.rows(); */
+    /* } */
 
     /// visualize if it is the first environment
     if (visualizable_) {
@@ -117,16 +117,20 @@ class ENVIRONMENT : public RaisimGymEnv {
   void init() final { }
 
   void reset() final {
-    if (expertInitState_) {
-        initRow_ = (datasetSize_ - 160) * abs(uniformDist_(gen_));
-        Eigen::VectorXd state = expertDataset_.row(initRow_);
-        anymal_->setState(state.segment(0, 19), state.segment(19, 18));
-    } else if (randInitState_) {
+    if (randInitState_) {
         sampleInitialState();
         anymal_->setState(gc_rand_, gv_rand_);
     } else {
         anymal_->setState(gc_init_, gv_init_);
     }
+    actuation_.reset();
+    timeSinceReset_ = 0.;
+    updateObservation();
+  }
+
+  void expertReset(const Eigen::Ref<EigenVec>& init_data) {
+    init_data_ = init_data.cast<double>();
+    anymal_->setState(init_data_.head(gcDim_), init_data_.tail(gvDim_));
     actuation_.reset();
     timeSinceReset_ = 0.;
     updateObservation();
@@ -277,6 +281,7 @@ class ENVIRONMENT : public RaisimGymEnv {
   Eigen::VectorXd gc_, gv_;
   Eigen::MatrixXd expertDataset_;
 
+  Eigen::Matrix<double, 37, 1> init_data_;
   Eigen::Matrix<double, 36, 1> obDouble_;
   Eigen::Matrix<double, 19, 1> gc_init_, gc_rand_, pos_var_;
   Eigen::Matrix<double, 18, 1> gv_init_, gv_rand_, vel_var_, gf_;

@@ -79,6 +79,11 @@ class RaisimGymVecEnv:
         self.wrapper.reset()
         return self._observation
 
+    def expert_reset(self, init_data):
+        self._reward = np.zeros(self.num_envs, dtype=np.float32)
+        self.wrapper.expertReset(init_data)
+        return self._observation
+
     def close(self):
         self.wrapper.close()
 

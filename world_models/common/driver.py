@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 import gymnasium as gym
 import world_models.raisim_gym as raisim_gym
@@ -116,8 +117,11 @@ class RaisimDriver(DriverBase):
 
     def reset(self):
         self.step = 0
-        init_data = self.sample_expert_data()
-        self._env.reset()
+        if self.config.expert_init_state:
+            init_data = self.sample_expert_data()
+            self._env.expert_reset(init_data)
+        else:
+            self._env.reset()
         h_t = self._init_deter()
         obs = self._to_ten(self._env.observe())
         action = torch.randn(self.config.num_envs, self._env.num_acts).to(
@@ -126,16 +130,16 @@ class RaisimDriver(DriverBase):
 
     def load_expert_data(self, expert_data):
         self.expert_data = expert_data
-        print('expert data shape:', self.expert_data.shape)
 
     def sample_expert_data(self):
         self.start_idx = torch.randint(
-            0, self.expert_data.shape[0] - self.config.eval_steps)
+            0, self.expert_data.shape[0] - self.config.eval_steps, (1,))
         self.eps_idx = torch.randint(
-            0, self.expert_data.shape[1])
-        return self.expert_data[
+            0, self.expert_data.shape[1], (1,))
+        sample = self.expert_data[
             self.start_idx:self.start_idx + self.config.eval_steps,
             self.eps_idx]
+        return np.squeeze(to_np(sample), axis=1)
 
     def env_info(self):
         return self._env.num_obs, self._env.num_acts, self.config.action_clip

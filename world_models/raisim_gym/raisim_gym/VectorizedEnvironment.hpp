@@ -80,6 +80,11 @@ class VectorizedEnvironment {
       env->reset();
   }
 
+  void expertReset(Eigen::Ref<EigenRowMajorMat> &init_data) {
+    for (int i = 0; i < num_envs_; i++)
+      environments_[i]->expertReset(init_data.row(i));
+  }
+
   void observe(Eigen::Ref<EigenRowMajorMat> &ob, bool updateStatistics) {
 #pragma omp parallel for schedule(auto)
     for (int i = 0; i < num_envs_; i++)
