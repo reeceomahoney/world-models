@@ -51,7 +51,7 @@ default:
   unimix_ratio: 0.01
   init_deter: 'zero'
   policy_gradient: 'dynamics'
-  latent_noise_factor: 0
+  latent_noise_factor: 0.1
 
   # Exploration
   Plan2Explore: False
@@ -64,10 +64,10 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-  log_every: 1e3
-  eval_every: 2e4
-  # log_every: 5e2
-  # eval_every: 2e3
+  # log_every: 1e3
+  # eval_every: 2e4
+  log_every: 5e2
+  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -91,13 +91,18 @@ raisim:
 
 ditto:
   ditto_dataset: 'rand_start_eps_3'
-  ditto_wm_steps: 5e5
+  ditto_wm_steps: 0
   ditto_wm_eval_every: 1e4
   ditto_il_steps: 1e8
   ditto_wm_batch_size: 512
   ditto_batch_size: 512
   ditto_batch_length: 1500
   ditto_state: 'deter'  # 'deter', 'full', or 'logits'
+
+#TODO: fix init data for rand_3, using rand_2 atm. Issue comes from dealing with separate eps
+#TODO: systematic eval of the shortest effective wm training time
+#TODO: add timestep resolution eval logging
+#TODO: allow eval reward to work with full state
 
 debug:
   num_envs: 1
