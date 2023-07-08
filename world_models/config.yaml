@@ -90,7 +90,7 @@ raisim:
     turnVelMax: 0.625
 
 ditto:
-  ditto_dataset: 'rand_start_eps_3'
+  ditto_dataset: '10k'
   ditto_wm_steps: 0
   ditto_wm_eval_every: 1e4
   ditto_il_steps: 1e8

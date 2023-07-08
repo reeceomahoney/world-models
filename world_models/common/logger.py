@@ -204,9 +204,11 @@ class DittoLogger(Logger):
             return []
 
         # get corresponding expert states
-        init_row = eval_driver.get_init_row() + 1
-        expert_data = {k: v[init_row:init_row + self.config.eval_steps]
-                       for k, v in self.expert_eval_data.items()}
+        start_idx = self.env_driver.start_idx
+        eps_idx = self.env_driver.eps_idx
+        expert_data = {
+            k: v[start_idx:start_idx + self.config.eval_steps, eps_idx]
+            for k, v in self.expert_eval_data.items()}
         expert_states = self.agent.encode_expert_data(
             expert_data)['state'][..., :self.config.h_dim]
 
