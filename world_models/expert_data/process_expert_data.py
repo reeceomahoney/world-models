@@ -25,7 +25,7 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = 'rand_start_eps_3'
+data_dir = '10k'
 obs_dim = 49
 eval_eps = 50
 
@@ -33,8 +33,7 @@ eval_eps = 50
 # states = read_bag(data_dir, 'expert', ['state_and_action'])[0]
 # states = states.to_numpy()[::16, 3:].astype(np.float32)
 
-# states = pd.read_csv(
-#     f'{data_dir}/expert.csv').to_numpy()[::16].astype(np.float32)
+# load data
 states = np.load(f'{data_dir}/expert_raw.npy')
 states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
 
@@ -53,13 +52,10 @@ init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles
 init_data[..., 19:37] = states[:, -eval_eps:, 16:34]  # joint velocities
 init_data[..., -12:] = states[:, -eval_eps:, -12:]  # actions
 
-# save data
-init_data = init_data.reshape(-1, obs_dim)
-np.savetxt(data_dir + '/init_data.csv', init_data, delimiter=",")
-
-expert_eval_data = np.expand_dims(
-    states[:, -eval_eps:, 1:].reshape(-1, obs_dim - 1), axis=1)
-np.save(data_dir + '/expert_eval', expert_eval_data)  # eval eps
+# save two version of the eval data, one for initialization
+# and one for encoding
+np.save(data_dir + '/expert_init', init_data)
+np.save(data_dir + '/expert_eval', states[:, -eval_eps:, 1:])
 
 # remove validation eps and height
 np.save(data_dir + '/expert', states[:, :-eval_eps, 1:])
