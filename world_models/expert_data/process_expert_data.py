@@ -45,12 +45,11 @@ states = states[:-(states.shape[0] % 64)]  # must be divisible by 64
 print(f'Expert data shape: {states.shape}')
 
 # initialization data
-init_data = np.zeros((states.shape[0], eval_eps, obs_dim))
+init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 12))
 init_data[..., 2] = states[:, -eval_eps:, 0]  # height
 init_data[..., 3] = 1  # orientation
 init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles
 init_data[..., 19:37] = states[:, -eval_eps:, 16:34]  # joint velocities
-init_data[..., -12:] = states[:, -eval_eps:, -12:]  # actions
 
 # save two version of the eval data, one for initialization
 # and one for encoding

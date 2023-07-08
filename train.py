@@ -3,6 +3,7 @@ import pickle
 from pathlib import Path
 from collections import OrderedDict
 
+import numpy as np
 import torch
 
 import world_models.dreamer as dreamer
@@ -60,6 +61,11 @@ if args.replay is None:
                                                    config.device)
         del expert_eval_data['cont']
 
+        expert_init_path = expert_path.parent / 'expert_init.npy'
+        expert_init_data = torch.tensor(np.load(expert_init_path)).to(
+            torch.float32).to(config.device)
+
+        env_driver.load_expert_data(expert_init_data)
         logger = common.DittoLogger(config, agent, env_driver, expert_sampler,
                                     expert_eval_data)
     else:

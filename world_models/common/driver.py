@@ -97,10 +97,15 @@ class RaisimDriver(DriverBase):
         self._raisim_config = config_dict
         rsc_path = os.path.dirname(os.path.realpath(__file__)) + \
             '/../raisim_gym/rsc'
+
         self._env = raisim_gym.VecEnv(raisim_gym.RaisimGymEnv(
             rsc_path, dump(self._raisim_config, Dumper=RoundTripDumper)),
                                       normalize_ob=False)
         self._env.turn_off_visualization()
+
+        self.expert_data = None
+        self.start_idx = None
+        self.eps_idx = None
 
     def __call__(self, action):
         self.step += 1
@@ -111,12 +116,26 @@ class RaisimDriver(DriverBase):
 
     def reset(self):
         self.step = 0
+        init_data = self.sample_expert_data()
         self._env.reset()
         h_t = self._init_deter()
         obs = self._to_ten(self._env.observe())
         action = torch.randn(self.config.num_envs, self._env.num_acts).to(
             self.config.device)
         return obs, h_t, action
+
+    def load_expert_data(self, expert_data):
+        self.expert_data = expert_data
+        print('expert data shape:', self.expert_data.shape)
+
+    def sample_expert_data(self):
+        self.start_idx = torch.randint(
+            0, self.expert_data.shape[0] - self.config.eval_steps)
+        self.eps_idx = torch.randint(
+            0, self.expert_data.shape[1])
+        return self.expert_data[
+            self.start_idx:self.start_idx + self.config.eval_steps,
+            self.eps_idx]
 
     def env_info(self):
         return self._env.num_obs, self._env.num_acts, self.config.action_clip
