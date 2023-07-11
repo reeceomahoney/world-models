@@ -35,13 +35,19 @@ eval_eps = 50
 
 # load data
 states = np.load(f'{data_dir}/expert_raw.npy')
+tmp = states[:5, 0]
 states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
+assert states[:5, 0, :obs_dim - 12].all() == tmp[:, obs_dim - 12].all()
+assert states[:5, 0, -12:].all() == tmp[:, -12:].all()
 
 # split into episodes, the swapaxes are necessary to split correctly
+tmp = states[:5, 0]
 states = states.swapaxes(0, 1)
 states = states.reshape(-1, 200, obs_dim)
 states = states.swapaxes(0, 1)
 states = states[:-(states.shape[0] % 64)]  # must be divisible by 64
+assert states.shape[0] % 64 == 0
+assert states[:5, 0].all() == tmp.all(), 'episodes are not split correctly'
 print(f'Expert data shape: {states.shape}')
 
 # initialization data
@@ -49,7 +55,9 @@ init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 12))
 init_data[..., 2] = states[:, -eval_eps:, 0]  # height
 init_data[..., 3] = 1  # orientation
 init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles
-init_data[..., 19:37] = states[:, -eval_eps:, 16:34]  # joint velocities
+init_data[..., 19:22] = states[:, -eval_eps:, 31:34]  # linear velocity
+# angular + joint velocity
+init_data[..., 22:37] = states[:, -eval_eps:, 16:31]
 
 # save two version of the eval data, one for initialization
 # and one for encoding
