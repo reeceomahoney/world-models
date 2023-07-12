@@ -9,6 +9,7 @@ class Agent(torch.nn.Module):
         super(Agent, self).__init__()
         # config
         self.config = config
+        self.obs_dim = obs_dim
         self.h_dim = config.h_dim
         self.z_dim = config.z_dim
 
@@ -71,7 +72,7 @@ class Agent(torch.nn.Module):
         self.device = config.device
         self.set_actor_critic()
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Environment interaction
 
     def __call__(self, h_t, obs, deterministic=False):
@@ -92,7 +93,7 @@ class Agent(torch.nn.Module):
                 torch.cat((h_t1, z_t1), dim=-1))
         return (obs_1, reward_1, cont_1), h_t1, action
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Training
 
     def train_step(self, step, replay, should_train):
@@ -117,11 +118,16 @@ class Agent(torch.nn.Module):
     def ditto_step(self, replay):
         expert_sample = replay.sample(self.config.ditto_batch_size,
                                       self.config.imag_horizon + 1)
+        assert expert_sample['state'].shape == (
+            self.config.imag_horizon + 1,
+            self.config.ditto_batch_size,
+            self.h_dim + self.z_dim)
 
         # add noise to expert states, 0.5 is a typical dataset std
-        expert_sample['state'][..., :self.config.h_dim] += \
-            self.config.latent_noise_factor * 0.5 * torch.randn_like(
-                expert_sample['state'][..., :self.config.h_dim])
+        if self.config.latent_noise_factor > 0:
+            expert_sample['state'][..., :self.config.h_dim] += \
+                self.config.latent_noise_factor * 0.5 * torch.randn_like(
+                    expert_sample['state'][..., :self.config.h_dim])
         self.expert_actions = expert_sample['action']
 
         if self.config.ditto_state == 'logits':
@@ -144,11 +150,13 @@ class Agent(torch.nn.Module):
         else:
             # for training
             # not enough memory to encode all data at once during visualization
-            eps = 9950 // 2 if eval else 9950
-            encode_batch_size = 995
+            eps = self.expert_data_size[1]
+            if eval:
+                eps /= 2
+            encode_batch_size = 500
             states = []
 
-            for i in range(eps // encode_batch_size):
+            for i in range(int(eps / encode_batch_size)):
                 data_batch = replay.get_slice(i * encode_batch_size,
                                               (i + 1) * encode_batch_size)
                 h_init = self._init_deter(encode_batch_size)
@@ -160,31 +168,48 @@ class Agent(torch.nn.Module):
                         states['state'][..., :self.config.h_dim],
                         states['post']), dim=-1)
                 else:
-                    state = self._encode_data(data_batch, h_init,
-                                              {'state': []})[0]
+                    state = self._encode_data(
+                        data_batch, h_init, {'state': []})[0]
+                    assert state['state'].shape == (
+                        self.expert_data_size[0],
+                        encode_batch_size,
+                        self.h_dim + self.z_dim), state['state'].shape
                     state = {k: v.to('cpu') for k, v in state.items()}
                     states.append(state)
 
             states = {k: torch.cat([s[k] for s in states], dim=1)
                       for k in states[0]}
             states = {k: v.to(self.device) for k, v in states.items()}
+            assert states['state'].shape == (
+                self.expert_data_size[0], eps, self.h_dim + self.z_dim), \
+                states['state'].shape
 
         self.world_model.requires_grad_(True)
         return states
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # World Model
 
     def train_world_model(self, replay, train=True):
         data = next(replay)
+        assert data['obs'].shape == (
+            self.config.batch_length,
+            self.config.ditto_wm_batch_size,
+            self.obs_dim)
+
         if replay.idx == 1:
             h_init = self._init_deter(data['obs'].shape[1])
         else:
             h_init = self.h_last
+        assert h_init.shape == (self.config.ditto_wm_batch_size, self.h_dim)
 
         states, h_last = self._encode_data(
             data, h_init, {'state': [], 'post': [], 'prior': []})
         self.h_last = h_last.detach()
+        assert states['state'].shape == (
+            self.config.batch_length,
+            self.config.ditto_wm_batch_size,
+            self.h_dim + self.z_dim)
 
         # losses
         d = common.CategoricalDist
@@ -227,7 +252,7 @@ class Agent(torch.nn.Module):
         states['action'] = data['action']
         return states, h_t
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Ensemble
 
     def _train_ensemble(self, data, states):
@@ -250,7 +275,7 @@ class Agent(torch.nn.Module):
 
         return {'ensemble_loss': loss}
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Actor Critic
 
     def _train_actor_critic(self, states_0):
@@ -417,7 +442,7 @@ class Agent(torch.nn.Module):
                                  torch.norm(states, dim=-1)) ** 2)
         self.rewards = reward.unsqueeze(-1)
 
-    # --------------------------------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Utility
 
     def set_actor_critic(self):
@@ -454,6 +479,10 @@ class Agent(torch.nn.Module):
                 self.states)
             self.weights = torch.cumprod(
                 self.gammas, dim=0).detach()
+
+    def set_expert_data_size(self, expert_sampler):
+        self.expert_data_size = (
+            expert_sampler.sample_length, expert_sampler.n_batches)
 
     @staticmethod
     def kl_div(x, y):

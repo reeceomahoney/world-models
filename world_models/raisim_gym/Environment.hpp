@@ -41,7 +41,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     anymal_ = world_->addArticulatedSystem(resourceDir_+"/anymal/urdf/anymal.urdf");
     anymal_->setName("anymal");
     anymal_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
-    world_->addGround();
+    world_->addGround(0., "ground_material");
 
     /// robot data
     gcDim_ = anymal_->getGeneralizedCoordinateDim();
@@ -105,6 +105,39 @@ class ENVIRONMENT : public RaisimGymEnv {
     /*     datasetSize_ = expertDataset_.rows(); */
     /* } */
 
+    /// set pd gains
+    /* Eigen::VectorXd jointPgain(gvDim_), jointDgain(gvDim_); */
+    /* jointPgain.setZero(); */
+    /* jointDgain.setZero(); */
+    /* jointPgain.tail(nJoints_).setConstant(85.0); */
+    /* jointDgain.tail(nJoints_).setConstant(0.6); */
+    /* anymal_->setPdGains(jointPgain, jointDgain); */
+
+    
+    /// Set the material property for each of the collision bodies of the robot
+    for (auto &collisionBody: anymal_->getCollisionBodies()) {
+        if (collisionBody.colObj->name.find("FOOT") != std::string::npos) {
+            collisionBody.setMaterial("foot_material");
+        } else {
+            collisionBody.setMaterial("robot_material");
+        }
+    }
+
+    auto materialPairGroundFootProperties =
+            world_->getMaterialPairProperties("ground_material", "foot_material");
+    world_->setMaterialPairProp(
+            "ground_material", "foot_material",
+            0.6, materialPairGroundFootProperties.c_r,
+            materialPairGroundFootProperties.r_th
+    );
+
+    auto materialPairGroundRobotProperties =
+            world_->getMaterialPairProperties("ground_material", "robot_material");
+    world_->setMaterialPairProp("ground_material", "robot_material",
+                                0.4, materialPairGroundRobotProperties.c_r,
+                                materialPairGroundRobotProperties.r_th
+    );
+
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(world_.get());
@@ -147,7 +180,7 @@ class ENVIRONMENT : public RaisimGymEnv {
         jointPositionErrors_ = jointTarget_ - gc_.tail(nJoints_);
         torque_ = actuation_.getActuationTorques(jointPositionErrors_, jointVelocities_);
 
-        gf_.tail(nJoints_) = torque_;
+        gf_.tail(nJoints_) = torque_.cwiseMax(-80.).cwiseMin(80.);
         anymal_->setGeneralizedForce(gf_);
 
         world_->integrate();
@@ -215,9 +248,9 @@ class ENVIRONMENT : public RaisimGymEnv {
     /// collect observations
     obDouble_.segment(0,3) = orientation_;
     obDouble_.segment(3, nJoints_) = jointAngles_;
-    obDouble_.segment(15, 3) = bodyLinearVel_;
-    obDouble_.segment(18, 3) = bodyAngularVel_;
-    obDouble_.segment(21, nJoints_) = jointVelocities_;
+    obDouble_.segment(15, 3) = bodyAngularVel_;
+    obDouble_.segment(18, nJoints_) = jointVelocities_;
+    obDouble_.segment(30, 3) = bodyLinearVel_;
     obDouble_.segment(33, 3) = desiredVel_;
   }
 
@@ -255,12 +288,12 @@ class ENVIRONMENT : public RaisimGymEnv {
       euler[2] = obs[2];
       raisim::eulerVecToQuat(euler, quat);
 
-      pTarget_[2] = 0.63;
+      pTarget_[2] = 0.61;
       pTarget_.segment(3, 4) = quat.e();
       pTarget_.segment(7, 12) = obs.segment(3, 12);
-      vTarget_.segment(0, 3) = obs.segment(15, 3);
-      vTarget_.segment(3, 3) = obs.segment(18, 3);
-      vTarget_.segment(6, 12) = obs.segment(21, 12);
+      vTarget_.segment(0, 3) = obs.segment(30, 3);
+      vTarget_.segment(3, 3) = obs.segment(15, 3);
+      vTarget_.segment(6, 12) = obs.segment(18, 12);
 
       for (int i = 0; i < int(control_dt_ / simulation_dt_ + 1e-10); i++) {
           if (server_) server_->lockVisualizationServerMutex();
