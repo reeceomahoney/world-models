@@ -51,13 +51,14 @@ assert states[:5, 0].all() == tmp.all(), 'episodes are not split correctly'
 print(f'Expert data shape: {states.shape}')
 
 # initialization data
-init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 12))
+init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 9))
 init_data[..., 2] = states[:, -eval_eps:, 0]  # height
 init_data[..., 3] = 1  # orientation
 init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles
 init_data[..., 19:22] = states[:, -eval_eps:, 31:34]  # linear velocity
 # angular + joint velocity
 init_data[..., 22:37] = states[:, -eval_eps:, 16:31]
+init_data[..., 37:40] = states[:, -eval_eps:, 34:37]  # vel cmd
 
 # save two version of the eval data, one for initialization
 # and one for encoding

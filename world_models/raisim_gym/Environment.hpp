@@ -97,14 +97,6 @@ class ENVIRONMENT : public RaisimGymEnv {
     maxDesiredVel_[1] = cfg["commands"]["latVelMax"].template As<double>();
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
 
-    /// load expert data (must run with --ditto True to load config)
-    /* if (expertInitState_) { */
-    /*     auto datasetName = cfg["ditto_dataset"].template As<std::string>(); */
-    /*     std::cout << "Loading expert data from " << datasetName << std::endl; */
-    /*     expertDataset_ = load_csv<MatrixXd>(resourceDir_ + "/../../expert_data/" + datasetName + "/init_data.csv"); */
-    /*     datasetSize_ = expertDataset_.rows(); */
-    /* } */
-
     /// set pd gains
     /* Eigen::VectorXd jointPgain(gvDim_), jointDgain(gvDim_); */
     /* jointPgain.setZero(); */
@@ -156,6 +148,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     } else {
         anymal_->setState(gc_init_, gv_init_);
     }
+    expertDatasetLoaded_ = false;
     actuation_.reset();
     timeSinceReset_ = 0.;
     updateObservation();
@@ -163,7 +156,9 @@ class ENVIRONMENT : public RaisimGymEnv {
 
   void expertReset(const Eigen::Ref<EigenVec>& init_data) {
     init_data_ = init_data.cast<double>();
-    anymal_->setState(init_data_.head(gcDim_), init_data_.tail(gvDim_));
+    anymal_->setState(init_data_.segment(0, gcDim_), init_data_.segment(gcDim_, gvDim_));
+    desiredVel_ = init_data_.segment(gcDim_ + gvDim_, 3);
+    expertDatasetLoaded_ = true;
     actuation_.reset();
     timeSinceReset_ = 0.;
     updateObservation();
@@ -201,19 +196,21 @@ class ENVIRONMENT : public RaisimGymEnv {
     rewards_.record("angVel", logisticKernel(4*(bodyAngularVel_[2] - angVelDesired[2])));
 
     /// generate commands
-    if (randomCommands_) {
-        if (int(100*timeSinceReset_) % 400 <= 1) {
-            if (uniformDist_(gen_) < 0.1) {
-                // generate zero command 10% of the time
-                desiredVel_.setZero();
-            } else {
-                desiredVel_[0] = maxDesiredVel_[0] * uniformDist_(gen_);
-                desiredVel_[1] = maxDesiredVel_[1] * uniformDist_(gen_);
-                desiredVel_[2] = maxDesiredVel_[2] * uniformDist_(gen_);
+    if (!expertDatasetLoaded_) {
+        if (randomCommands_) {
+            if (int(100*timeSinceReset_) % 400 <= 1) {
+                if (uniformDist_(gen_) < 0.1) {
+                    // generate zero command 10% of the time
+                    desiredVel_.setZero();
+                } else {
+                    desiredVel_[0] = maxDesiredVel_[0] * uniformDist_(gen_);
+                    desiredVel_[1] = maxDesiredVel_[1] * uniformDist_(gen_);
+                    desiredVel_[2] = maxDesiredVel_[2] * uniformDist_(gen_);
+                }
             }
+        } else {
+            desiredVel_ << 0.5, 0., 0.;
         }
-    } else {
-        desiredVel_ << 0.5, 0., 0.;
     }
 
     timeSinceReset_ += control_dt_;
@@ -310,11 +307,12 @@ class ENVIRONMENT : public RaisimGymEnv {
  private:
   int gcDim_, gvDim_, nJoints_, datasetSize_, initRow_;
   bool visualizable_ = false, addVelNoise_, randInitState_, expertInitState_, randomCommands_;
+  bool expertDatasetLoaded_ = false;
   raisim::ArticulatedSystem* anymal_;
   Eigen::VectorXd gc_, gv_;
   Eigen::MatrixXd expertDataset_;
 
-  Eigen::Matrix<double, 37, 1> init_data_;
+  Eigen::Matrix<double, 40, 1> init_data_;
   Eigen::Matrix<double, 36, 1> obDouble_;
   Eigen::Matrix<double, 19, 1> gc_init_, gc_rand_, pos_var_;
   Eigen::Matrix<double, 18, 1> gv_init_, gv_rand_, vel_var_, gf_;

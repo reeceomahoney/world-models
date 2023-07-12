@@ -153,7 +153,7 @@ class Agent(torch.nn.Module):
             eps = self.expert_data_size[1]
             if eval:
                 eps /= 2
-            encode_batch_size = 500
+            encode_batch_size = 995
             states = []
 
             for i in range(int(eps / encode_batch_size)):
