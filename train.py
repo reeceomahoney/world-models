@@ -16,7 +16,7 @@ from world_models import common
 # parse args
 parser = argparse.ArgumentParser()
 parser.add_argument('--env', type=str, default='raisim')
-parser.add_argument('--ditto', type=str, default=False)
+parser.add_argument('--ditto', type=str, default=True)
 parser.add_argument('--agent', type=str, default=None)
 parser.add_argument('--replay', type=str, default=None)
 args = parser.parse_args()
@@ -68,6 +68,7 @@ if args.replay is None:
         env_driver.load_expert_data(expert_init_data)
         logger = common.DittoLogger(config, agent, env_driver, expert_sampler,
                                     expert_eval_data)
+        agent.set_expert_data_size(expert_sampler)
     else:
         replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim,
                                                       'reward': 1,

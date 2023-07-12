@@ -204,7 +204,7 @@ class DittoLogger(Logger):
             return []
 
         # get corresponding expert states
-        start_idx = self.env_driver.start_idx
+        start_idx = self.env_driver.start_idx + 1  # +1 because of reset
         eps_idx = self.env_driver.eps_idx
         expert_data = {
             k: v[start_idx:start_idx + self.config.eval_steps, eps_idx]
@@ -214,7 +214,10 @@ class DittoLogger(Logger):
 
         # compute reward
         agent_states = torch.stack(agent_states, dim=0)
+
+        # to deal with early termination
         expert_states = expert_states[:agent_states.shape[0]]
+
         reward = torch.sum(expert_states * agent_states, dim=-1)
         reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
                                  torch.norm(agent_states, dim=-1)) ** 2)

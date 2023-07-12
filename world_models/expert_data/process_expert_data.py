@@ -25,7 +25,7 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = '10k'
+data_dir = '10k_2'
 obs_dim = 49
 eval_eps = 50
 

@@ -90,7 +90,8 @@ class ExpertSampler:
 
         self.data = data
         self.batch_length = config.batch_length
-        self.n_samples = size(data) // config.batch_length
+        self.sample_length = data['obs'].shape[0]
+        self.n_samples = self.sample_length // config.batch_length
         self.n_batches = data['obs'].shape[1]
         self.batch_size = config.ditto_wm_batch_size
         self.batch_idx = 0
