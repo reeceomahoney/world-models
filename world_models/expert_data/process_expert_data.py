@@ -25,7 +25,7 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = '10k_2'
+data_dir = 'fwd_2k'
 obs_dim = 49
 eval_eps = 50
 
@@ -33,21 +33,31 @@ eval_eps = 50
 # states = read_bag(data_dir, 'expert', ['state_and_action'])[0]
 # states = states.to_numpy()[::16, 3:].astype(np.float32)
 
-# load data
-states = np.load(f'{data_dir}/expert_raw.npy')
-tmp = states[:5, 0]
-states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
-assert states[:5, 0, :obs_dim - 12].all() == tmp[:, obs_dim - 12].all()
-assert states[:5, 0, -12:].all() == tmp[:, -12:].all()
+# load csv
+data_dir = Path(__file__).parent.absolute() / data_dir
+states = pd.read_csv(str(data_dir / 'expert.csv'), header=None).to_numpy()
+print(f'Expert data shape: {states.shape}')
 
-# split into episodes, the swapaxes are necessary to split correctly
-tmp = states[:5, 0]
-states = states.swapaxes(0, 1)
+# load data
+# states = np.load(f'{data_dir}/expert_raw.npy')
+# tmp = states[:5, 0]
+# states = np.delete(states, slice(obs_dim - 12, -12), axis=-1)
+# assert states[:5, 0, :obs_dim - 12].all() == tmp[:, obs_dim - 12].all()
+# assert states[:5, 0, -12:].all() == tmp[:, -12:].all()
+
+# split into episodes, the swapaxes is necessary to split correctly
+tmp = states[:5]
+tmp_2 = states[-5:]
 states = states.reshape(-1, 200, obs_dim)
-states = states.swapaxes(0, 1)
-states = states[:-(states.shape[0] % 64)]  # must be divisible by 64
+states = np.swapaxes(states, 0, 1)
+assert np.array_equal(
+    states[:5, 0], tmp), 'episodes are not split correctly'
+assert np.array_equal(
+    states[-5:, -1], tmp_2), 'episodes are not split correctly'
+
+# must be divisible by 64 to work with encoder batching
+states = states[:-(states.shape[0] % 64)]
 assert states.shape[0] % 64 == 0
-assert states[:5, 0].all() == tmp.all(), 'episodes are not split correctly'
 print(f'Expert data shape: {states.shape}')
 
 # initialization data
@@ -62,8 +72,8 @@ init_data[..., 37:40] = states[:, -eval_eps:, 34:37]  # vel cmd
 
 # save two version of the eval data, one for initialization
 # and one for encoding
-np.save(data_dir + '/expert_init', init_data)
-np.save(data_dir + '/expert_eval', states[:, -eval_eps:, 1:])
+np.save(data_dir / 'expert_init', init_data)
+np.save(data_dir / 'expert_eval', states[:, -eval_eps:, 1:])
 
 # remove validation eps and height
-np.save(data_dir + '/expert', states[:, :-eval_eps, 1:])
+np.save(data_dir / 'expert', states[:, :-eval_eps, 1:])
