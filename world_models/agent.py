@@ -195,7 +195,7 @@ class Agent(torch.nn.Module):
         assert data['obs'].shape == (
             self.config.batch_length,
             self.config.ditto_wm_batch_size,
-            self.obs_dim)
+            self.obs_dim), data['obs'].shape
 
         if replay.idx == 1:
             h_init = self._init_deter(data['obs'].shape[1])

@@ -64,10 +64,10 @@ default:
 raisim:
   batch_length: 64
   action_repeat: 1
-  log_every: 1e3
-  eval_every: 2e4
-  # log_every: 5e2
-  # eval_every: 2e3
+  # log_every: 1e3
+  # eval_every: 2e4
+  log_every: 5e2
+  eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -90,8 +90,8 @@ raisim:
     turnVelMax: 0.625
 
 ditto:
-  ditto_dataset: 'fwd_2k'
-  ditto_wm_steps: 5e5
+  ditto_dataset: 'fwd_10k'
+  ditto_wm_steps: 0
   ditto_wm_eval_every: 1e4
   ditto_il_steps: 1e8
   ditto_wm_batch_size: 512

@@ -1,26 +1,34 @@
 from pathlib import Path
-from world_models import common
 import argparse
+import sys
+sys.path.append(str(Path(__file__).parents[1].absolute()))
+
+from world_models import common
 from world_models.agent import Agent
 
 import torch
 import matplotlib.pyplot as plt
 
 
-args = argparse.ArgumentParser()
+parser = argparse.ArgumentParser()
+parser.add_argument('--wm', type=str, default=None)
+args = parser.parse_args()
 args.env = 'raisim'
 args.ditto = True
 
 home_path = Path(__file__).parents[1].absolute()
 config_path = home_path / 'world_models/config.yaml'
 config, config_dict = common.init_config(config_path, args)
-expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset / 'expert_eval.npy'
+config.ditto_wm_batch_size = 40
+
+expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset / \
+    'expert_eval.npy'
 expert_data = common.load_expert_data(expert_path, 36, config.device)
 expert_sampler = common.ExpertSampler(config, expert_data)
 
 agent = Agent(36, 12, 1, config)
 
-wm_list = Path(home_path / 'world_models/logs/raisim/rand_eps_wm/models').glob('wm*')
+wm_list = Path(args.wm).glob('wm*')
 wm_list = sorted(wm_list, key=lambda x: int(x.stem.split('_')[-1]))
 
 pred_loss_list, kl_loss_list = [], []

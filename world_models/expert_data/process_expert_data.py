@@ -25,9 +25,9 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = 'fwd_2k'
+data_dir = 'fwd_10k'
 obs_dim = 49
-eval_eps = 50
+eval_eps = 100
 
 # uncomment this if you're working with a bag file
 # states = read_bag(data_dir, 'expert', ['state_and_action'])[0]
@@ -50,10 +50,8 @@ tmp = states[:5]
 tmp_2 = states[-5:]
 states = states.reshape(-1, 200, obs_dim)
 states = np.swapaxes(states, 0, 1)
-assert np.array_equal(
-    states[:5, 0], tmp), 'episodes are not split correctly'
-assert np.array_equal(
-    states[-5:, -1], tmp_2), 'episodes are not split correctly'
+assert (states[:5, 0] == tmp).all(), 'episodes are not split correctly'
+assert (states[-5:, -1] == tmp_2).all(), 'episodes are not split correctly'
 
 # must be divisible by 64 to work with encoder batching
 states = states[:-(states.shape[0] % 64)]
