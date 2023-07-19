@@ -55,6 +55,6 @@ tensorboard --logdir <log_dir>
 
 ### TODO
 
-- [] systematic eval of the shortest effective wm training time
-- [] add timestep resolution eval logging
-- [] refactor logger
+- [ ] systematic eval of the shortest effective wm training time
+- [ ] add timestep resolution eval logging
+- [ ] refactor logger
