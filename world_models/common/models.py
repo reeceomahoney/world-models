@@ -1,13 +1,17 @@
 import math
 
-import torch.nn
+import torch
+import torch.distributions as D
 import torch.nn as nn
 
-from .distributions import *
+from .distributions import act_case, TruncatedNormal, SymlogGaussian, \
+    TwoHotDistSymlog, CategoricalDist
+from .utils import symexp
 
 
 class BaseMLP(nn.Module):
-    def __init__(self, in_dim, out_dim, hidden_layers, act, device, init_zero=False):
+    def __init__(self, in_dim, out_dim, hidden_layers, act, device,
+                 init_zero=False):
         super(BaseMLP, self).__init__()
 
         layers = []
@@ -33,7 +37,8 @@ class BaseMLP(nn.Module):
 
 class Actor(BaseMLP):
     def __init__(self, act_dim, act_range, config):
-        super(Actor, self).__init__(config.h_dim + config.z_dim, 2 * act_dim, config.layers, config.act, config.device)
+        super(Actor, self).__init__(config.h_dim + config.z_dim, 2 * act_dim,
+                                    [64], config.act, config.device)
 
         self._act_dim = act_dim
         self._act_range = act_range
@@ -45,7 +50,8 @@ class Actor(BaseMLP):
         x = self.architecture(x)
         mean, std = torch.split(x, self._act_dim, dim=-1)
         mean = torch.tanh(mean)
-        std = (self._max_std - self._min_std) * torch.sigmoid(std + 2.0) + self._min_std
+        std = (self._max_std - self._min_std) * torch.sigmoid(std + 2.0) + \
+            self._min_std
         dist = TruncatedNormal(mean, std, -self._act_range, self._act_range)
         return D.Independent(dist, 1)
 
@@ -61,7 +67,8 @@ class Decoder(BaseMLP):
 
 class GaussianMLP(BaseMLP):
     def __init__(self, config):
-        super(GaussianMLP, self).__init__(config.h_dim + config.z_dim, 1, config.layers, config.act, config.device)
+        super(GaussianMLP, self).__init__(config.h_dim + config.z_dim, 1,
+                                          [64], config.act, config.device)
 
     def __call__(self, x):
         dist = SymlogGaussian(self.architecture(x), 1)
@@ -70,8 +77,9 @@ class GaussianMLP(BaseMLP):
 
 class TwoHotSymlogMLP(BaseMLP):
     def __init__(self, config):
-        super(TwoHotSymlogMLP, self).__init__(config.h_dim + config.z_dim, 255, config.layers, config.act,
-                                              config.device, init_zero=config.init_zero)
+        super(TwoHotSymlogMLP, self).__init__(
+            config.h_dim + config.z_dim, 255, config.layers, config.act,
+            config.device, init_zero=config.init_zero)
         self.device = config.device
 
     def __call__(self, x):
@@ -82,7 +90,8 @@ class RecurrentModel(nn.Module):
     def __init__(self, in_dim, hidden_state_dim, device):
         super(RecurrentModel, self).__init__()
 
-        self.architecture = nn.GRUCell(input_size=in_dim, hidden_size=hidden_state_dim)
+        self.architecture = nn.GRUCell(
+            input_size=in_dim, hidden_size=hidden_state_dim)
         self.architecture.to(device)
 
     def __call__(self, x, h):
@@ -91,7 +100,8 @@ class RecurrentModel(nn.Module):
 
 class CategoricalMLP(BaseMLP):
     def __init__(self, in_dim, out_dim, config, device):
-        super(CategoricalMLP, self).__init__(in_dim, out_dim, config.layers, config.act, device)
+        super(CategoricalMLP, self).__init__(in_dim, out_dim, config.layers,
+                                             config.act, device)
         self._unimix_ratio = config.unimix_ratio
         self._dim = int(math.sqrt(out_dim))
 
@@ -101,7 +111,8 @@ class CategoricalMLP(BaseMLP):
 
 class BernoulliMLP(BaseMLP):
     def __init__(self, in_dim, out_dim, layers, act, device='cuda'):
-        super(BernoulliMLP, self).__init__(in_dim, out_dim, layers, act, device)
+        super(BernoulliMLP, self).__init__(in_dim, out_dim, layers, act,
+                                           device)
 
     def __call__(self, x):
         logits = self.architecture(x)
@@ -117,7 +128,8 @@ class Ensemble(nn.Module):
         size = config.ensemble_size
 
         self.models = nn.ModuleList([
-            Decoder(in_dim, out_dim, config.layers, config.act, config.device) for _ in range(size)])
+            Decoder(in_dim, out_dim, config.layers, config.act, config.device)
+            for _ in range(size)])
         self.size = size
         self._explore_coeff = config.explore_coeff
 
@@ -125,4 +137,5 @@ class Ensemble(nn.Module):
         return torch.stack([self.models[i](x).mode for i in range(self.size)])
 
     def get_variance(self, x):
-        return self._explore_coeff * self(x).var(dim=0).mean(dim=-1, keepdim=True)
+        return self._explore_coeff * self(x).var(dim=0).mean(
+            dim=-1, keepdim=True)
