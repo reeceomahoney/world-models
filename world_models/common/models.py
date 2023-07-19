@@ -38,7 +38,7 @@ class BaseMLP(nn.Module):
 class Actor(BaseMLP):
     def __init__(self, act_dim, act_range, config):
         super(Actor, self).__init__(config.h_dim + config.z_dim, 2 * act_dim,
-                                    [64], config.act, config.device)
+                                    config.layers, config.act, config.device)
 
         self._act_dim = act_dim
         self._act_range = act_range
@@ -67,8 +67,9 @@ class Decoder(BaseMLP):
 
 class GaussianMLP(BaseMLP):
     def __init__(self, config):
-        super(GaussianMLP, self).__init__(config.h_dim + config.z_dim, 1,
-                                          [64], config.act, config.device)
+        super(GaussianMLP, self).__init__(
+            config.h_dim + config.z_dim, 1, config.layers, config.act,
+            config.device)
 
     def __call__(self, x):
         dist = SymlogGaussian(self.architecture(x), 1)
