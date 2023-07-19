@@ -14,12 +14,17 @@ class Logger:
     def __init__(self, config, agent, env_driver, replay, launch_tb=False):
         # make log dir
         home_path = Path(__file__).parents[1].absolute()
-        # log_dir = home_path / 'logs' / config.env_name
-        log_dir = Path('/data2/reece/raisim')
+        log_dir = home_path / 'logs' / config.env_name
+        # log_dir = Path('/data2/reece/raisim')
         saver = FileSaver(log_dir, [home_path / 'config.yaml'])
         tensorboard_launcher(saver.data_dir) if launch_tb else None
 
         self.writer = SummaryWriter(log_dir=saver.data_dir, flush_secs=10)
+        layout = {'imag': {'reward_ema': ['Multiline', ['reward_ema/05',
+                                                        'reward_ema/95']]},
+                  'rewards': {'reward': ['Multiline', ['reward/mean',
+                                                       'reward/var']]}}
+        self.writer.add_custom_scalars(layout)
         (saver.data_dir / '../datasets').mkdir(parents=True, exist_ok=True)
 
         self.config = config
@@ -118,17 +123,19 @@ class Logger:
                 for k in self.reward_info.keys():
                     self.reward_mean[k] = np.mean(np.array(
                         self.reward_info[k]))
+                    self.writer.add_scalar(f'reward/mean/{k}',
+                                           self.reward_mean[k], step)
                     # self.reward_std[k] = np.std(np.array(
                     #     self.reward_info[k]))
-            self.writer.add_scalars('rewards/mean', self.reward_mean, step)
-            # self.writer.add_scalars('rewards/std', self.reward_std, step)
+            # # self.writer.add_scalars('reward/std', self.reward_std, step)
 
         # imagination
         for name in ['imag_reward', 'imag_values', 'imag_value_targets']:
             self._write_scalar(name, 'imag', info, step)
         if 'reward_ema' in info:
-            self.writer.add_scalars('imag/reward_ema',
-                                    info['reward_ema'], step)
+            for k in info['reward_ema'].keys():
+                self.writer.add_scalar(f'reward_ema/{k}',
+                                       info['reward_ema'][k], step)
 
         # misc
         for name in ['act_std', 'buffer_size', 'act_size', 'act_diff']:
