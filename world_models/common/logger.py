@@ -14,8 +14,8 @@ class Logger:
     def __init__(self, config, agent, env_driver, replay, launch_tb=False):
         # make log dir
         home_path = Path(__file__).parents[1].absolute()
-        log_dir = home_path / 'logs' / config.env_name
-        # log_dir = Path('/data2/reece/raisim')
+        # log_dir = home_path / 'logs' / config.env_name
+        log_dir = Path('/data2/reece/raisim')
         saver = FileSaver(log_dir, [home_path / 'config.yaml'])
         tensorboard_launcher(saver.data_dir) if launch_tb else None
 

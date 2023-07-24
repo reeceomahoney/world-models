@@ -103,11 +103,12 @@ class CategoricalMLP(BaseMLP):
     def __init__(self, in_dim, out_dim, config, device):
         super(CategoricalMLP, self).__init__(in_dim, out_dim, config.layers,
                                              config.act, device)
-        self._unimix_ratio = config.unimix_ratio
-        self._dim = int(math.sqrt(out_dim))
+        self.unimix_ratio = config.unimix_ratio
+        self.dim = int(math.sqrt(out_dim))
 
     def __call__(self, x):
-        return CategoricalDist(self.architecture(x), self._unimix_ratio)
+        return CategoricalDist(self.architecture(x),
+                               self.unimix_ratio, self.dim)
 
 
 class BernoulliMLP(BaseMLP):

@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.distributions as D
 
@@ -162,11 +164,17 @@ class Agent(torch.nn.Module):
                 h_init = self._init_deter(encode_batch_size)
 
                 if self.config.ditto_state == 'logits':
-                    states = self._encode_data(data_batch, h_init,
-                                               {'state': [], 'post': []})[0]
-                    states['state'] = torch.cat((
-                        states['state'][..., :self.config.h_dim],
-                        states['post']), dim=-1)
+                    state = self._encode_data(data_batch, h_init,
+                                              {'state': [], 'post': []})[0]
+                    state['state'] = torch.cat((
+                        state['state'][..., :self.config.h_dim],
+                        state['post']), dim=-1)
+                    assert state['state'].shape == (
+                        self.expert_data_size[0],
+                        encode_batch_size,
+                        self.h_dim + self.z_dim), state['state'].shape
+                    state = {k: v.to('cpu') for k, v in state.items()}
+                    states.append(state)
                 else:
                     state = self._encode_data(
                         data_batch, h_init, {'state': []})[0]
@@ -212,7 +220,8 @@ class Agent(torch.nn.Module):
             self.h_dim + self.z_dim)
 
         # losses
-        d = common.CategoricalDist
+        d = lambda x: common.CategoricalDist(
+            x, dim=int(math.sqrt(self.config.z_dim)))
         pred_loss = -self.world_model.log_probs(data, states['state']).mean()
         dyn_loss = self.config.beta_dyn * self.kl_div(
             d(states['post'].detach()), d(states['prior'])).mean()
@@ -440,6 +449,9 @@ class Agent(torch.nn.Module):
         reward = torch.sum(expert_states * states, dim=-1)
         reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
                                  torch.norm(states, dim=-1)) ** 2)
+
+        act_diff = torch.norm(self.actions - self.expert_actions[1:], dim=-1)
+        reward -= self.config.act_diff_coeff * act_diff
         self.rewards = reward.unsqueeze(-1)
 
     # -------------------------------------------------------------------------
