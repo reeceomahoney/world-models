@@ -1,13 +1,14 @@
 from pathlib import Path
 import argparse
 import sys
-sys.path.append(str(Path(__file__).parents[1].absolute()))
-
-from world_models import common
-from world_models.agent import Agent
 
 import torch
 import matplotlib.pyplot as plt
+
+sys.path.append(str(Path(__file__).parents[1].absolute()))
+
+from world_models import common   # noqa: E402
+from world_models.agent import Agent  # noqa: E402
 
 
 parser = argparse.ArgumentParser()

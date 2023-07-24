@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 sys.path.append(str(Path(__file__).parents[1].absolute()))
-import world_models.common as common
+import world_models.common as common  # noqa: E402
 
 # parse args
 parser = argparse.ArgumentParser()
