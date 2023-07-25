@@ -1,6 +1,7 @@
 import pickle
 from pathlib import Path
 import time
+import socket
 
 import numpy as np
 import torch
@@ -14,8 +15,12 @@ class Logger:
     def __init__(self, config, agent, env_driver, replay, launch_tb=False):
         # make log dir
         home_path = Path(__file__).parents[1].absolute()
-        # log_dir = home_path / 'logs' / config.env_name
         log_dir = Path('/data2/reece/raisim')
+
+        # changes the log dir if running on my machine
+        if socket.gethostname() == 'ori-29339':
+            log_dir = home_path / 'logs' / config.env_name
+
         saver = FileSaver(log_dir, [home_path / 'config.yaml'])
         tensorboard_launcher(saver.data_dir) if launch_tb else None
 
