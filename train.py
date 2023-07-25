@@ -27,15 +27,18 @@ config_path = home_path / 'world_models/config.yaml'
 config, config_dict = common.init_config(config_path, args)
 expert_path = home_path / 'world_models/expert_data' / config.ditto_dataset \
     / 'expert.npy'
-print(f'using expert data: {config.ditto_dataset}')
+print(f'Using expert data: {config.ditto_dataset}')
 
 # env
 env_driver = common.get_driver(config, config_dict)
-print(f'using device: {config.device}')
+print(f'Using device: {config.device}')
+
+logger = common.Logger(config)
 
 # agent
 obs_dim, act_dim = env_driver.env_info()[:2]
-agent = Agent(*env_driver.env_info(), config)
+agent = Agent(*env_driver.env_info(), logger, config)
+
 if args.agent is not None:
     agent_state_dict = torch.load(home_path / args.agent,
                                   map_location=config.device)
@@ -66,15 +69,13 @@ if args.replay is None:
             torch.float32).to(config.device)
 
         env_driver.load_expert_data(expert_init_data)
-        logger = common.DittoLogger(config, agent, env_driver, expert_sampler,
-                                    expert_eval_data)
         agent.set_expert_data_size(expert_sampler)
+        visualizer = common.Visualizer(
+            config, agent, env_driver, logger, expert_eval_data)
     else:
-        replays = tuple([common.ReplayBuffer(config, {'obs': obs_dim,
-                                                      'reward': 1,
-                                                      'cont': 1,
-                                                      'action': act_dim})])
-        logger = common.Logger(config, agent, env_driver, replays[0])
+        replays = tuple([common.ReplayBuffer(
+            config, {'obs': obs_dim, 'reward': 1, 'cont': 1, 'action': act_dim}
+        )])
 else:
     with open(home_path / args.replay, 'rb') as handle:
         replays = tuple([pickle.load(handle)])
@@ -83,4 +84,4 @@ else:
 if not args.ditto:
     dreamer.main(config, env_driver, agent, replays, logger)
 else:
-    ditto.main(config, env_driver, agent, expert_sampler, logger)
+    ditto.main(config, env_driver, agent, expert_sampler, logger, visualizer)

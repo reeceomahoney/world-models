@@ -7,7 +7,7 @@ import world_models.common as common
 
 
 class Agent(torch.nn.Module):
-    def __init__(self, obs_dim, act_dim, act_range, config):
+    def __init__(self, obs_dim, act_dim, act_range, logger, config):
         super(Agent, self).__init__()
         # config
         self.config = config
@@ -61,10 +61,13 @@ class Agent(torch.nn.Module):
         self._updates = 0
         self.actor, self.actor_optim = None, None
         self.critic, self.slow_critic, self.critic_optim = None, None, None
+        self.value_targets = None
 
         self.states, self.states_logits, self.rewards = None, None, None
         self.action, self.action_log_probs = None, None
         self.gammas, self.weights = None, None
+
+        self.logger = logger
 
         # ditto
         self.expert_states, self.expert_actions, self.h_last = None, None, None
@@ -237,9 +240,10 @@ class Agent(torch.nn.Module):
                                            self.config.model_grad_clip)
             self.world_model_optim.step()
 
-        info = {'pred_loss': pred_loss.item(),
-                'kl_loss': (dyn_loss + repr_loss).item()}
-        return data, states, info
+        self.logger.log('world_model',
+                        {'pred_loss': pred_loss.item(),
+                         'kl_loss': (dyn_loss + repr_loss).item()})
+        return data, states
 
     def _encode_data(self, data, h_init, states):
         batch_length = data['obs'].shape[0]
@@ -281,8 +285,7 @@ class Agent(torch.nn.Module):
         self.ensemble_optim.step()
 
         self.world_model.requires_grad_(True)
-
-        return {'ensemble_loss': loss}
+        self.logger.log('ensemble', {'loss': loss.item()})
 
     # -------------------------------------------------------------------------
     # Actor Critic
@@ -297,7 +300,7 @@ class Agent(torch.nn.Module):
         # imagine rollouts
         states, actions, action_log_probs = [], [], []
         states_logits = []
-        info = {'entropy': 0, 'act_size': 0, 'act_std': 0}
+        info = {'entropy': 0, 'size': 0, 'std': 0}
         for _ in range(self.config.imag_horizon):
             states_t = self.world_model.step(states_t, act_t)
             actor = self.actor(states_t)
@@ -316,9 +319,9 @@ class Agent(torch.nn.Module):
 
             info['entropy'] += actor.entropy().mean() / \
                 self.config.imag_horizon
-            info['act_size'] += act_t.square().mean() / \
+            info['size'] += act_t.square().mean() / \
                 self.config.imag_horizon
-            info['act_std'] += actor.stddev.mean() / \
+            info['std'] += actor.stddev.mean() / \
                 self.config.imag_horizon
 
         self.states = torch.stack(states, dim=0)
@@ -343,8 +346,8 @@ class Agent(torch.nn.Module):
         self._calculate_gammas()
 
         # calculate losses
-        policy_loss, value_targets = self._calculate_policy_loss()
-        value_loss, values = self._calculate_value_loss(value_targets)
+        policy_loss = self._calculate_policy_loss()
+        value_loss = self._calculate_value_loss()
         entropy_loss = self.config.entropy_coeff * info['entropy']
         loss = policy_loss + value_loss - entropy_loss
 
@@ -362,15 +365,10 @@ class Agent(torch.nn.Module):
         self.world_model.requires_grad_(True)
         self.ensemble.requires_grad_(True)
 
-        return {'policy_loss': policy_loss,
-                'value_loss': value_loss,
-                'imag_reward': self.rewards.mean(),
-                'imag_values': values.mean(),
-                'imag_value_targets': value_targets.mean(),
-                'reward_ema': {'05': self.reward_ema.values[0],
-                               '95': self.reward_ema.values[1]},
-                'act_diff': act_diff,
-                **info}
+        self.logger.log('actor_info', {'act_diff': act_diff, **info})
+        self.logger.log('actor_reward', {'reward': self.rewards.mean()})
+        self.logger.log('actor_critic_loss',
+                        {'policy_loss': policy_loss, 'value_loss': value_loss})
 
     def _calculate_policy_loss(self):
         self.critic.requires_grad_(False)
@@ -406,22 +404,28 @@ class Agent(torch.nn.Module):
                 f'Unknown policy gradient: {self.config.policy_gradient}')
 
         policy_loss = -(self.weights[:-1] * actor_target).mean()
+        self.value_targets = value_targets.detach()
+        self.logger.log('critic',
+                        {'value_targets': self.value_targets.mean(),
+                         'value_target_ema/05': self.reward_ema.values[0],
+                         'value_target_ema/95': self.reward_ema.values[1]})
 
         self.critic.requires_grad_(True)
-        return policy_loss, value_targets
+        return policy_loss
 
-    def _calculate_value_loss(self, value_targets):
+    def _calculate_value_loss(self):
         self.actor.requires_grad_(False)
 
         values = self.critic(self.states[:-1].detach())
-        value_loss = -values.log_prob(value_targets.detach())
+        value_loss = -values.log_prob(self.value_targets)
         if self.config.critic_update == 'soft':
             slow_critic = self.slow_critic(self.states[:-1].detach())
             value_loss -= values.log_prob(slow_critic.mode().detach())
         value_loss = (self.weights[:-1] * value_loss.unsqueeze(-1)).mean()
 
         self.actor.requires_grad_(True)
-        return value_loss, values.mode()
+        self.logger.log('critic', {'values': values.mode().mean()})
+        return value_loss
 
     def _update_slow_critic(self):
         if self.config.critic_update == 'hard':

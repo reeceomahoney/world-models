@@ -35,9 +35,11 @@ expert_init_data = torch.tensor(np.load(expert_init_path)).to(
 
 env_driver.load_expert_data(expert_init_data)
 
+logger = common.Logger(config)
+
 agent_state_dict = torch.load(agent_path, map_location=config.device)
 
-agent = Agent(*env_driver.env_info(), config)
+agent = Agent(*env_driver.env_info(), logger, config)
 agent.load_state_dict(agent_state_dict, strict=False)
 
 obs, h_t, action = env_driver.reset()
