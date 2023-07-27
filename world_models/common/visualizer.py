@@ -24,6 +24,7 @@ class Visualizer:
         self.eval_info = None
 
     def visualize_wm(self, step, latent_sampler):
+        print('Visualizing world model...')
         timer = Timer(0.04, sleep=True)
         self.env_driver.turn_on_visualization()
 
@@ -41,7 +42,7 @@ class Visualizer:
                    f'{self.log_dir}/../models/wm_{step}.pt')
 
     def visualize_policy(self, step):
-        print('evaluating...')
+        print('Visualizing policy...')
         self.eval_info = {
             'obs_error': 0,
             'ditto_reward': torch.empty((0, 1)).to(self.config.device),

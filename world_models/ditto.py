@@ -13,7 +13,7 @@ def main(config, env_driver, agent, expert_sampler, logger, visualizer):
     for step in range(int(config.ditto_wm_steps)):
         agent.train_world_model(expert_sampler)[-1]
 
-        if step % config.eval_every == 0:
+        if step % config.ditto_wm_eval_every == 0:
             latent_sampler = encode_and_store(agent, expert_sampler, eval=True)
             visualizer.visualize_wm(step, latent_sampler)
         if step % config.log_every == 0:

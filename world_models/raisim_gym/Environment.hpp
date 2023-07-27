@@ -115,21 +115,6 @@ class ENVIRONMENT : public RaisimGymEnv {
         }
     }
 
-    /* auto materialPairGroundFootProperties = */
-    /*         world_->getMaterialPairProperties("ground_material", "foot_material"); */
-    /* world_->setMaterialPairProp( */
-    /*         "ground_material", "foot_material", */
-    /*         0.6, materialPairGroundFootProperties.c_r, */
-    /*         materialPairGroundFootProperties.r_th */
-    /* ); */
-
-    /* auto materialPairGroundRobotProperties = */
-    /*         world_->getMaterialPairProperties("ground_material", "robot_material"); */
-    /* world_->setMaterialPairProp("ground_material", "robot_material", */
-    /*                             0.4, materialPairGroundRobotProperties.c_r, */
-    /*                             materialPairGroundRobotProperties.r_th */
-    /* ); */
-
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(world_.get());

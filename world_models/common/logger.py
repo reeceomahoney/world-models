@@ -58,6 +58,7 @@ class Logger:
 
     def publish(self, step: int):
         dt = time.time() - self.start_time
+        self.start_time = time.time()
 
         # log to tensorboard
         for k, v in self.info.items():
