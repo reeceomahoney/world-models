@@ -108,6 +108,12 @@ def init_config(config_path, args):
         for key, value in full_config_dict['ditto'].items():
             config_dict[key] = value
 
+    # policy training mode
+    if args.agent is not None:
+        config_dict['log_every'] = 5e2
+        config_dict['eval_every'] = 2e3
+        config_dict['ditto_wm_steps'] = 0
+
     # debug mode
     if hasattr(sys, 'gettrace') and sys.gettrace() is not None and \
             'debug' in full_config_dict:

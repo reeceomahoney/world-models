@@ -34,7 +34,7 @@ class SymlogGaussian(D.Normal, ABC):
 
 
 class CategoricalDist:
-    def __init__(self, logits, unimix_ratio=0.01, dim=32):
+    def __init__(self, logits, unimix_ratio, dim):
         probs = F.softmax(logits, dim=-1)
         probs = probs * (1 - unimix_ratio) + (unimix_ratio / probs.shape[-1])
         self.logits = torch.log(probs)

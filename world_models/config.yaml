@@ -21,10 +21,11 @@ default:
   save_datasets: False
 
   # Model
-  h_dim: 64
-  z_dim: 1
+  h_dim: 512
+  z_dim: 1024
   layers: [512, 512]
   act: silu
+  z_dist: 'Categorical'
   ensemble_size: 1
 
   # Training
@@ -66,8 +67,6 @@ raisim:
   action_repeat: 1
   log_every: 1e3
   eval_every: 2e4
-  # log_every: 5e2
-  # eval_every: 2e3
   eval_eps: 2
   eval_steps: 150
   render: True
@@ -98,9 +97,6 @@ ditto:
   ditto_batch_size: 512
   ditto_state: 'deter'  # 'deter', 'full', or 'logits'
   act_diff_coeff: 0
-
-#TODO: systematic eval of the shortest effective wm training time
-#TODO: add timestep resolution eval logging
 
 debug:
   num_envs: 1

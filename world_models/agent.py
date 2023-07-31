@@ -223,8 +223,7 @@ class Agent(torch.nn.Module):
             self.h_dim + self.z_dim)
 
         # losses
-        d = lambda x: common.CategoricalDist(
-            x, dim=int(math.sqrt(self.config.z_dim)))
+        d = self._get_z_dist()
         pred_loss = -self.world_model.log_probs(data, states['state']).mean()
         dyn_loss = self.config.beta_dyn * self.kl_div(
             d(states['post'].detach()), d(states['prior'])).mean()
@@ -499,6 +498,14 @@ class Agent(torch.nn.Module):
     def set_expert_data_size(self, expert_sampler):
         self.expert_data_size = (
             expert_sampler.sample_length, expert_sampler.n_batches)
+
+    def _get_z_dist(self):
+        if self.config.z_dist == 'Categorical':
+            return lambda x: common.CategoricalDist(
+                x, self.config.unimix_ratio,
+                dim=int(math.sqrt(self.config.z_dim)))
+        elif self.config.z_dist == 'Gaussian':
+            return lambda x: D.Normal(x, 1)
 
     @staticmethod
     def kl_div(x, y):

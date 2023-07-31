@@ -9,7 +9,7 @@ def encode_and_store(agent, expert_sampler, eval=False):
 def main(config, env_driver, agent, expert_sampler, logger, visualizer):
     agent.set_actor_critic()
 
-    print('\ntraining world model...')
+    print('\nTraining world model...')
     for step in range(int(config.ditto_wm_steps)):
         agent.train_world_model(expert_sampler)[-1]
 
@@ -19,7 +19,7 @@ def main(config, env_driver, agent, expert_sampler, logger, visualizer):
         if step % config.log_every == 0:
             logger.publish(step)
 
-    print('\nimitation learning...')
+    print('\nImitation learning...')
     latent_sampler = encode_and_store(agent, expert_sampler)
     for step in range(int(config.ditto_il_steps)):
         agent.ditto_step(latent_sampler)
