@@ -42,13 +42,21 @@ To run an experiment, use the following command:
 
 ```bash
 cd world_models
-python train.py --env <env_name>
+python train.py 
 ```
+
+By default this will run the DITTO algorithm in raisim. To run dreamer instead, add the flag `--ditto False`. To change the environment to one from OpenAI gym, add the `--env` flag followed by the name of the environment. To run from a prexisting agent add the `--agent` flag followed by a path to the corrent `.pt` file.
 
 Logging can be done using tensorboard:
 
 ```bash
 tensorboard --logdir <log_dir>
+```
+
+Finally, to test a pre-existing agent, run the following:
+
+```bash
+python run.py --agent <path_to_agent>
 ```
 
 ### TODO
