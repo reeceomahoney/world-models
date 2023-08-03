@@ -94,9 +94,9 @@ class Agent(torch.nn.Module):
         with torch.no_grad():
             h_t1, action = self(h_t, obs, deterministic=True)
             z_t1 = self.world_model.dynamics(h_t1)
-            obs_1, reward_1, cont_1 = self.world_model.predict(
-                torch.cat((h_t1, z_t1), dim=-1))
-        return (obs_1, reward_1, cont_1), h_t1, action
+            state = torch.cat((h_t1, z_t1), dim=-1)
+            obs_1, reward_1, cont_1 = self.world_model.predict(state)
+        return (obs_1, reward_1, cont_1), state, action
 
     # -------------------------------------------------------------------------
     # Training

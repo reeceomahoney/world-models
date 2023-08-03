@@ -60,11 +60,12 @@ class Visualizer:
 
             for t in range(self.config.eval_steps):
                 timer.start()
-                preds, h_t, action = self.agent.predict(h_t, obs)
+                preds, state, action = self.agent.predict(h_t, obs)
                 obs, reward, done = self.env_driver(action)
                 self.eval_info['obs_error'] += torch.norm(preds[0] - obs) / n
                 mean_reward += reward / n
-                agent_states.append(h_t)
+                agent_states.append(state)
+                h_t = state[..., :self.config.h_dim]
                 timer.end()
                 if done.any():
                     agent_states = self._calculate_ditto_reward(agent_states)
@@ -92,10 +93,12 @@ class Visualizer:
         expert_data = {
             k: v[start_idx:start_idx + self.config.eval_steps, eps_idx]
             for k, v in self.expert_eval_data.items()}
-        expert_states = self.agent.encode_expert_data(
-            expert_data)['state'][..., :self.config.h_dim]
-
+        expert_states = self.agent.encode_expert_data(expert_data)['state']
         agent_states = torch.stack(agent_states, dim=0)
+
+        if self.config.ditto_state == 'deter':
+            expert_states = expert_states[..., :self.config.h_dim]
+            agent_states = agent_states[..., :self.config.h_dim]
 
         # to deal with early termination
         expert_states = expert_states[:agent_states.shape[0]]
