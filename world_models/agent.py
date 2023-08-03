@@ -239,9 +239,16 @@ class Agent(torch.nn.Module):
                                            self.config.model_grad_clip)
             self.world_model_optim.step()
 
+        z_std = states['prior'][..., self.z_dim:].mean()
+        z_std_max = states['prior'][..., self.z_dim:].max()
+        z_std_min = states['prior'][..., self.z_dim:].min()
+
         self.logger.log('world_model',
                         {'pred_loss': pred_loss.item(),
-                         'kl_loss': (dyn_loss + repr_loss).item()})
+                         'kl_loss': (dyn_loss + repr_loss).item(),
+                         'z_std': z_std.item(),
+                         'z_std_max': z_std_max.item(),
+                         'z_std_min': z_std_min.item()})
         return data, states
 
     def _encode_data(self, data, h_init, states):
