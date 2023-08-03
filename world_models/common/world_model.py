@@ -8,6 +8,7 @@ from .utils import symexp
 class WorldModel(nn.Module):
     def __init__(self, obs_dim, act_dim, config):
         super(WorldModel, self).__init__()
+        self.config = config
         layers = config.layers
         act = config.act
         device = config.device
@@ -23,8 +24,9 @@ class WorldModel(nn.Module):
             self._dynamics = models.CategoricalMLP(
                 self.h_dim, self.z_dim, config, device)
         elif config.z_dist == 'Gaussian':
-            self._encoder = models.GaussianMLP(config)
-            self._dynamics = models.GaussianMLP(config)
+            self._encoder = models.MultivariateGaussianMLP(
+                self.h_dim + obs_dim, config)
+            self._dynamics = models.MultivariateGaussianMLP(self.h_dim, config)
         else:
             raise NotImplementedError('Unknown z_dist')
 
@@ -40,13 +42,19 @@ class WorldModel(nn.Module):
         return self._recurrent_model(torch.cat((z_t, action), dim=-1), h_t)
 
     def dynamics(self, h_t):
-        return self._dynamics(h_t).sample()
+        if self.config.z_dist == 'Categorical':
+            return self._dynamics(h_t).sample()
+        elif self.config.z_dist == 'Gaussian':
+            return self._dynamics(h_t)[0].sample()
 
     def dynamics_logits(self, h_t):
         return self._dynamics(h_t).logits
 
     def encode(self, h_t, obs):
-        return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
+        if self.config.z_dist == 'Categorical':
+            return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
+        elif self.config.z_dist == 'Gaussian':
+            return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
 
     def decode(self, state):
         return self._decoder(state).mode

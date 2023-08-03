@@ -65,6 +65,26 @@ class Decoder(BaseMLP):
         return D.Independent(dist, 1)
 
 
+class MultivariateGaussianMLP(BaseMLP):
+    def __init__(self, in_dim, config):
+        super(MultivariateGaussianMLP, self).__init__(
+            in_dim, 2 * config.z_dim, config.layers, config.act, config.device)
+
+        self.z_dim = config.z_dim
+        self.init_std = config.init_std
+        self.max_std = config.max_std
+        self.min_std = config.min_std
+
+    def __call__(self, x):
+        x = self.architecture(x)
+        mean, std = torch.split(x, self.z_dim, dim=-1)
+        mean = torch.tanh(mean)
+        std = (self.max_std - self.min_std) * torch.sigmoid(std + 2.0) + \
+            self.min_std
+        dist = D.Normal(mean, std)
+        return D.Independent(dist, 1), torch.cat([mean, std], dim=-1)
+
+
 class GaussianMLP(BaseMLP):
     def __init__(self, config):
         super(GaussianMLP, self).__init__(

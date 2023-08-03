@@ -250,10 +250,21 @@ class Agent(torch.nn.Module):
 
         for t in range(batch_length):
             obs = data['obs'][t]
-            post, prior = self.world_model.get_z_dists(h_t, obs)
-            z_t = post.sample()
-            latents = {'state': torch.cat((h_t, z_t), dim=-1),
-                       'post': post.logits, 'prior': prior.logits}
+
+            if self.config.z_dist == 'Categorical':
+                post, prior = self.world_model.get_z_dists(h_t, obs)
+                z_t = post.sample()
+                latents = {'state': torch.cat((h_t, z_t), dim=-1),
+                           'post': post.logits, 'prior': prior.logits}
+            elif self.config.z_dist == 'Gaussian':
+                (post, post_stats), (prior, prior_stats) = \
+                    self.world_model.get_z_dists(h_t, obs)
+                z_t = post.sample()
+                latents = {'state': torch.cat((h_t, z_t), dim=-1),
+                           'post': post_stats, 'prior': prior_stats}
+            else:
+                raise NotImplementedError
+
             for k, v in latents.items():
                 if k in states:
                     states[k].append(v)
@@ -307,10 +318,12 @@ class Agent(torch.nn.Module):
             log_prob = actor.log_prob(act_t.detach())
 
             # for ditto
-            states_logits_t = self.world_model.dynamics_logits(
-                states_t[..., :self.config.h_dim])
-            states_logits.append(torch.cat((
-                states_t[..., :self.config.h_dim], states_logits_t), dim=-1))
+            if self.config.z_dist == 'Categorical':
+                states_logits_t = self.world_model.dynamics_logits(
+                    states_t[..., :self.config.h_dim])
+                states_logits.append(torch.cat((
+                    states_t[..., :self.config.h_dim],
+                    states_logits_t), dim=-1))
 
             states.append(states_t)
             actions.append(act_t)
@@ -327,7 +340,8 @@ class Agent(torch.nn.Module):
         self.actions = torch.stack(actions, dim=0)
         self.action_log_probs = torch.stack(
             action_log_probs, dim=0).unsqueeze(-1)
-        self.states_logits = torch.stack(states_logits, dim=0)
+        if self.config.z_dist == 'Categorical':
+            self.states_logits = torch.stack(states_logits, dim=0)
 
         # mean distance between agent and expert actions
         act_diff = torch.norm(self.actions - self.expert_actions[1:],
@@ -505,8 +519,11 @@ class Agent(torch.nn.Module):
                 x, self.config.unimix_ratio,
                 dim=int(math.sqrt(self.config.z_dim)))
         elif self.config.z_dist == 'Gaussian':
-            return lambda x: D.Normal(x, 1)
+            return lambda x: D.Normal(*x.split(self.config.z_dim, dim=-1))
 
-    @staticmethod
-    def kl_div(x, y):
-        return torch.clip(D.kl.kl_divergence(x.dist, y.dist), min=1.0)
+    def kl_div(self, x, y):
+        min_kl = 0
+        if self.config.z_dist == 'Categorial':
+            x, y = x.dist, y.dist
+            min_kl = 1.0
+        return torch.clip(D.kl.kl_divergence(x, y), min=min_kl)
