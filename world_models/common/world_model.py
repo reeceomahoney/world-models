@@ -54,7 +54,7 @@ class WorldModel(nn.Module):
         if self.config.z_dist == 'Categorical':
             return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
         elif self.config.z_dist == 'Gaussian':
-            return self._encoder(torch.cat((h_t, obs), dim=-1)).sample()
+            return self._encoder(torch.cat((h_t, obs), dim=-1))[0].sample()
 
     def decode(self, state):
         return self._decoder(state).mode
