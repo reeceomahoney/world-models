@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 import world_models.common as common
 from world_models.agent import Agent
@@ -13,6 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--env', type=str, default='raisim')
 parser.add_argument('--ditto', type=str, default=True)
 parser.add_argument('--agent', type=str, default=None)
+parser.add_argument('--plot', type=str, default=False)
 args = parser.parse_args()
 
 # paths
@@ -43,11 +45,27 @@ agent.load_state_dict(agent_state_dict, strict=False)
 obs, h_t, action = env_driver.reset()
 timer = common.Timer(config.control_dt, True)
 
+joint_angles, joint_targets = [], []
 for _ in range(5):
     for step in range(500):
         timer.start()
         obs, reward, done = env_driver(action)
         h_t, action = agent(h_t, obs, deterministic=True)
+        joint_angles.append(common.utils.symexp(obs[0, 3:15]).cpu().numpy())
+        joint_targets.append(action[0].cpu().numpy())
         timer.end()
         if done or step == config.eval_steps - 1:
             obs, h_t, action = env_driver.reset()
+
+if args.plot:
+    joint_angles = np.array(joint_angles)
+    joint_targets = np.array(joint_targets)
+
+    plt.figure()
+    for i in range(12):
+        plt.subplot(4, 3, i + 1)
+        plt.plot(joint_angles[:, i], label=f'joint angle {i}')
+        plt.plot(joint_targets[:, i], label=f'joint target {i}')
+        plt.legend()
+    plt.legend()
+    plt.show()

@@ -60,7 +60,7 @@ default:
   explore_coeff: 500
   init_std: 1
   max_std: 1
-  min_std: 0.01
+  min_std: 0.2
 
 raisim:
   batch_length: 64

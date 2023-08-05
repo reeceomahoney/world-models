@@ -63,4 +63,3 @@ python run.py --agent <path_to_agent>
 
 - [ ] systematic eval of the shortest effective wm training time
 - [ ] add timestep resolution eval logging
-- [ ] refactor logger

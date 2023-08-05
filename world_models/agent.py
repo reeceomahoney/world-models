@@ -239,16 +239,24 @@ class Agent(torch.nn.Module):
                                            self.config.model_grad_clip)
             self.world_model_optim.step()
 
-        z_std = states['prior'][..., self.z_dim:].mean()
-        z_std_max = states['prior'][..., self.z_dim:].max()
-        z_std_min = states['prior'][..., self.z_dim:].min()
-
         self.logger.log('world_model',
                         {'pred_loss': pred_loss.item(),
-                         'kl_loss': (dyn_loss + repr_loss).item(),
-                         'z_std': z_std.item(),
-                         'z_std_max': z_std_max.item(),
-                         'z_std_min': z_std_min.item()})
+                         'kl_loss': (dyn_loss + repr_loss).item()})
+
+        if self.config.z_dist == 'Categorical':
+            self.logger.log('world_model',
+                            {'post_entropy': d(states[
+                                'post']).entropy().mean(),
+                             'prior_entropy': d(states[
+                                 'prior']).entropy().mean()})
+        elif self.config.z_dist == 'Gaussian':
+            z_std = states['prior'][..., self.z_dim:]
+            self.logger.log('world_model',
+                            {'z_std': z_std.mean().item(),
+                             'z_std_max': z_std.max().item(),
+                             'z_std_min': z_std.min().item()})
+        else:
+            raise NotImplementedError
         return data, states
 
     def _encode_data(self, data, h_init, states):
@@ -530,7 +538,7 @@ class Agent(torch.nn.Module):
 
     def kl_div(self, x, y):
         min_kl = 0
-        if self.config.z_dist == 'Categorial':
+        if self.config.z_dist == 'Categorical':
             x, y = x.dist, y.dist
             min_kl = 1.0
         return torch.clip(D.kl.kl_divergence(x, y), min=min_kl)

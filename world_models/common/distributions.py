@@ -48,6 +48,9 @@ class CategoricalDist:
     def sample(self):
         return self._dist.rsample().reshape(*self.logits.shape[:-1], self._dim ** 2)
 
+    def entropy(self):
+        return self._dist.entropy()
+
     @property
     def dist(self):
         return self._dist
