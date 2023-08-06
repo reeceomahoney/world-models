@@ -144,7 +144,7 @@ class Agent(torch.nn.Module):
 
         return self._train_actor_critic(self.expert_states[0])
 
-    def encode_expert_data(self, replay, eval=False):
+    def encode_expert_data(self, replay, eval_ep=False):
         self.world_model.requires_grad_(False)
 
         if type(replay) == dict:
@@ -156,7 +156,7 @@ class Agent(torch.nn.Module):
             # for training
             # not enough memory to encode all data at once during visualization
             eps = self.expert_data_size[1]
-            if eval:
+            if eval_ep:
                 eps /= 2
             encode_batch_size = 500
             states = []

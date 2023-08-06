@@ -97,6 +97,7 @@ ditto:
   ditto_batch_size: 512
   ditto_state: 'deter'  # 'deter', 'full', or 'logits'
   act_diff_coeff: 0
+  wm_visualization: 'post'
 
 debug:
   num_envs: 1

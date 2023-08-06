@@ -28,27 +28,25 @@ class Visualizer:
         timer = Timer(0.04, sleep=True)
         self.env_driver.turn_on_visualization()
 
-        # Visualise posterior model
-        # for _ in range(3):
-        #     self.env_driver.reset()
-        #     data = latent_sampler.sample(1, 64)
-        #     for i in range(data['state'].shape[0]):
-        #         timer.start()
-        #         obs_target = self.agent.world_model.decode(data['state'][i])
-        #         self.env_driver.set_target(obs_target.detach().cpu().numpy())
-        #         timer.end()
-
-        # Visualise prior model
         for _ in range(3):
             self.env_driver.reset()
             data = latent_sampler.sample(1, 64)
-            states_t = data['state'][0]
-            for i in range(64):
+            if self.config.wm_visualization == 'prior':
+                states_t = data['state'][0]
+
+            for i in range(data['state'].shape[0]):
                 timer.start()
-                states_t = self.agent.world_model.step(
-                    states_t, data['action'][i])
-                obs_target = self.agent.world_model.decode(states_t)
-                self.env_driver.set_target(obs_target.detach().cpu().numpy())
+                if self.config.wm_visualization == 'post':
+                    obs_target = self.agent.world_model.decode(
+                        data['state'][i])
+                elif self.config.wm_visualization == 'prior':
+                    states_t = self.agent.world_model.step(
+                        states_t, data['action'][i])
+                    obs_target = self.agent.world_model.decode(states_t)
+                else:
+                    raise NotImplementedError
+                self.env_driver.set_target(
+                    obs_target.detach().cpu().numpy())
                 timer.end()
 
         self.env_driver.turn_off_visualization()

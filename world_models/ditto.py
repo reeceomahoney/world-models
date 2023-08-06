@@ -1,8 +1,8 @@
 import world_models.common as common
 
 
-def encode_and_store(agent, expert_sampler, eval=False):
-    data = agent.encode_expert_data(expert_sampler, eval=eval)
+def encode_and_store(agent, expert_sampler, eval_ep=False):
+    data = agent.encode_expert_data(expert_sampler, eval_ep=eval_ep)
     return common.LatentSampler(data)
 
 
@@ -14,7 +14,8 @@ def main(config, env_driver, agent, expert_sampler, logger, visualizer):
         agent.train_world_model(expert_sampler)[-1]
 
         if step % config.ditto_wm_eval_every == 0:
-            latent_sampler = encode_and_store(agent, expert_sampler, eval=True)
+            latent_sampler = encode_and_store(agent, expert_sampler,
+                                              eval_ep=True)
             visualizer.visualize_wm(step, latent_sampler)
         if step % config.log_every == 0:
             logger.publish(step)

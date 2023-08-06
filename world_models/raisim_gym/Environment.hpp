@@ -40,7 +40,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     /// add objects
     anymal_ = world_->addArticulatedSystem(resourceDir_+"/anymal/urdf/anymal.urdf");
     anymal_->setName("anymal");
-    anymal_->setControlMode(raisim::ControlMode::FORCE_AND_TORQUE);
+    anymal_->setControlMode(raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
     world_->addGround(0., "ground_material");
 
     /// robot data
@@ -98,12 +98,12 @@ class ENVIRONMENT : public RaisimGymEnv {
     maxDesiredVel_[2] = cfg["commands"]["turnVelMax"].template As<double>();
 
     /// set pd gains
-    /* Eigen::VectorXd jointPgain(gvDim_), jointDgain(gvDim_); */
-    /* jointPgain.setZero(); */
-    /* jointDgain.setZero(); */
-    /* jointPgain.tail(nJoints_).setConstant(85.0); */
+    Eigen::VectorXd jointPgain(gvDim_), jointDgain(gvDim_);
+    jointPgain.setZero();
+    jointDgain.setZero();
+    /* jointPgain.tail(nJoints_).setConstant(100.0); */
     /* jointDgain.tail(nJoints_).setConstant(0.6); */
-    /* anymal_->setPdGains(jointPgain, jointDgain); */
+    anymal_->setPdGains(jointPgain, jointDgain);
 
     
     /// Set the material property for each of the collision bodies of the robot
