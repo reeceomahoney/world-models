@@ -90,8 +90,8 @@ class ExpertSampler:
 
         self.data = data
         self.batch_length = config.batch_length
-        self.sample_length = data['obs'].shape[0]
-        self.n_samples = self.sample_length // config.batch_length
+        self.len_samples = data['obs'].shape[0]
+        self.n_samples = self.len_samples // config.batch_length
         self.n_batches = data['obs'].shape[1]
         self.batch_size = config.ditto_wm_batch_size
         self.batch_idx = 0
@@ -112,22 +112,7 @@ class ExpertSampler:
         self.idx += 1
         return samples
 
-    def get_slice(self, start, end):
-        return {k: v[:, start:end] for k, v in self.data.items()}
-
-
-class LatentSampler:
-    """
-    Random sampler for the encoded expert data.
-    """
-    def __init__(self, data):
-        self.data = data
-        self.len_samples, self.n_samples = data['state'].shape[:2]
-
-    def __iter__(self):
-        return self
-
-    def sample(self, batch_size, batch_length):
+    def sample(self, batch_length, batch_size):
         idx = torch.randint(self.n_samples, (batch_size,))
         start = torch.randint(self.len_samples - batch_length + 1,
                               (batch_size,))

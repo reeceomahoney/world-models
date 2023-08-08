@@ -1,4 +1,5 @@
 import math
+from collections import defaultdict
 
 import torch
 import torch.distributions as D
@@ -101,128 +102,98 @@ class Agent(torch.nn.Module):
     # -------------------------------------------------------------------------
     # Training
 
-    def train_step(self, step, replay, should_train):
-        if self.config.Plan2Explore and step >= self.config.explore_steps:
-            print('Ending Plan2Explore')
-            self.config.Plan2Explore = False
-        self.set_actor_critic()
+    # def train_step(self, step, replay, should_train):
+    #     if self.config.Plan2Explore and step >= self.config.explore_steps:
+    #         print('Ending Plan2Explore')
+    #         self.config.Plan2Explore = False
+    #     self.set_actor_critic()
 
-        if should_train:
-            data, states, rssm_info = self.train_world_model(replay)
-            if self.config.Plan2Explore:
-                ensemble_info = self._train_ensemble(data, states)
-            else:
-                ensemble_info = {}
+    #     if should_train:
+    #         states = self.train_world_model(replay)
+    #         if self.config.Plan2Explore:
+    #             ensemble_info = self._train_ensemble(data, states)
+    #         else:
+    #             ensemble_info = {}
 
-            states = torch.flatten(states['state'], 0, 1).detach()
-            ac_info = self._train_actor_critic(states)
-            return {**rssm_info, **ensemble_info, **ac_info}
-        else:
-            return {}
+    #         states = torch.flatten(states['state'], 0, 1).detach()
+    #         ac_info = self._train_actor_critic(states)
+    #         return {**rssm_info, **ensemble_info, **ac_info}
+    #     else:
+    #         return {}
 
-    def ditto_step(self, replay):
-        expert_sample = replay.sample(self.config.ditto_batch_size,
-                                      self.config.imag_horizon + 1)
-        assert expert_sample['state'].shape == (
-            self.config.imag_horizon + 1,
-            self.config.ditto_batch_size,
+    def ditto_step(self, expert_sampler):
+        """
+        Samples and encodes expert data then uses this to train the
+        actor-critic using DITTO.
+
+        Args:
+            expert_sampler (ExpertSampler): sampler for expert data
+
+        Returns:
+            info (dict): training info
+        """
+        # sample and encode expert data
+        expert_sample = expert_sampler.sample(self.config.imag_horizon + 1,
+                                              self.config.ditto_batch_size)
+        expert_states = self.encode_data(expert_sample)[0]
+        expert_states = {k: v.detach() for k, v in expert_states.items()}
+
+        # shift actions to match states (data is stored s_t, a_t+1)
+        expert_states['action'][1:] = expert_states['action'][:-1].clone()
+        self.expert_actions = expert_states['action']
+
+        assert expert_states['state'].shape == (
+            self.config.imag_horizon + 1, self.config.ditto_batch_size,
             self.h_dim + self.z_dim)
+        assert expert_states['action'].shape == (
+            self.config.imag_horizon + 1, self.config.ditto_batch_size,
+            self.act_dim)
+        assert expert_states['state'].grad_fn is None
+        assert expert_states['action'].grad_fn is None
 
-        # add noise to expert states, 0.5 is a typical dataset std
-        if self.config.latent_noise_factor > 0:
-            expert_sample['state'][..., :self.config.h_dim] += \
-                self.config.latent_noise_factor * 0.5 * torch.randn_like(
-                    expert_sample['state'][..., :self.config.h_dim])
-        self.expert_actions = expert_sample['action']
-
+        # augment states if the ditto reward uses logits
         if self.config.ditto_state == 'logits':
             self.expert_states = torch.cat((
-                expert_sample['state'][..., :self.config.h_dim],
-                expert_sample['post']), dim=-1)
+                expert_states['state'][..., :self.config.h_dim],
+                expert_states['post']), dim=-1)
         else:
-            self.expert_states = expert_sample['state']
+            self.expert_states = expert_states['state']
 
+        # initialise actor critic training at the first expert state
         return self._train_actor_critic(self.expert_states[0])
-
-    def encode_expert_data(self, replay, eval_ep=False):
-        self.world_model.requires_grad_(False)
-
-        if type(replay) == dict:
-            # for evaluation
-            data = replay
-            h_init = self._init_deter(data['obs'].shape[1])
-            states = self._encode_data(data, h_init, {'state': []})[0]
-        else:
-            # for training
-            # not enough memory to encode all data at once during visualization
-            eps = self.expert_data_size[1]
-            if eval_ep:
-                eps /= 2
-            encode_batch_size = 500
-            states = []
-
-            for i in range(int(eps / encode_batch_size)):
-                data_batch = replay.get_slice(i * encode_batch_size,
-                                              (i + 1) * encode_batch_size)
-                h_init = self._init_deter(encode_batch_size)
-
-                if self.config.ditto_state == 'logits':
-                    state = self._encode_data(data_batch, h_init,
-                                              {'state': [], 'post': []})[0]
-                    state['state'] = torch.cat((
-                        state['state'][..., :self.config.h_dim],
-                        state['post']), dim=-1)
-                    assert state['state'].shape == (
-                        self.expert_data_size[0],
-                        encode_batch_size,
-                        self.h_dim + self.z_dim), state['state'].shape
-                    state = {k: v.to('cpu') for k, v in state.items()}
-                    states.append(state)
-                else:
-                    state = self._encode_data(
-                        data_batch, h_init, {'state': []})[0]
-                    assert state['state'].shape == (
-                        self.expert_data_size[0],
-                        encode_batch_size,
-                        self.h_dim + self.z_dim), state['state'].shape
-                    state = {k: v.to('cpu') for k, v in state.items()}
-                    states.append(state)
-
-            states = {k: torch.cat([s[k] for s in states], dim=1)
-                      for k in states[0]}
-            states = {k: v.to(self.device) for k, v in states.items()}
-            assert states['state'].shape == (
-                self.expert_data_size[0], eps, self.h_dim + self.z_dim), \
-                states['state'].shape
-
-        self.world_model.requires_grad_(True)
-        return states
 
     # -------------------------------------------------------------------------
     # World Model
 
-    def train_world_model(self, replay, train=True):
-        data = next(replay)
+    def train_world_model(self, expert_sampler, train=True):
+        """
+        Trains the world model using sequentially sampled data.
+
+        Args:
+            expert_sampler (ExpertSampler): sampler for expert data
+            train (bool): whether to train the world model
+        """
+        # sample data sequentially to preserve temporal correlations
+        data = next(expert_sampler)
+
         assert data['obs'].shape == (
-            self.config.batch_length,
-            self.config.ditto_wm_batch_size,
+            self.config.batch_length, self.config.ditto_wm_batch_size,
             self.obs_dim), data['obs'].shape
 
-        if replay.idx == 1:
-            h_init = self._init_deter(data['obs'].shape[1])
+        # initialise non-initial states with the last hidden state
+        if expert_sampler.idx == 1:
+            h_init = None
         else:
             h_init = self.h_last
-        assert h_init.shape == (self.config.ditto_wm_batch_size, self.h_dim)
 
-        states, h_last = self._encode_data(
-            data, h_init, {'state': [], 'post': [], 'prior': []})
+        states, h_last = self.encode_data(data, h_init)
         self.h_last = h_last.detach()
+
         assert states['state'].shape == (
-            self.config.batch_length,
-            self.config.ditto_wm_batch_size,
+            self.config.batch_length, self.config.ditto_wm_batch_size,
             self.h_dim + self.z_dim)
 
-        # losses
+        # compute losses
         d = self._get_z_dist()
         pred_loss = -self.world_model.log_probs(data, states['state']).mean()
         dyn_loss = self.config.beta_dyn * self.kl_div(
@@ -239,16 +210,16 @@ class Agent(torch.nn.Module):
                                            self.config.model_grad_clip)
             self.world_model_optim.step()
 
+        # log
         self.logger.log('world_model',
                         {'pred_loss': pred_loss.item(),
                          'kl_loss': (dyn_loss + repr_loss).item()})
 
         if self.config.z_dist == 'Categorical':
-            self.logger.log('world_model',
-                            {'post_entropy': d(states[
-                                'post']).entropy().mean(),
-                             'prior_entropy': d(states[
-                                 'prior']).entropy().mean()})
+            self.logger.log(
+                'world_model',
+                {'post_entropy': d(states['post']).entropy().mean(),
+                 'prior_entropy': d(states['prior']).entropy().mean()})
         elif self.config.z_dist == 'Gaussian':
             z_std = states['prior'][..., self.z_dim:]
             self.logger.log('world_model',
@@ -257,11 +228,15 @@ class Agent(torch.nn.Module):
                              'z_std_min': z_std.min().item()})
         else:
             raise NotImplementedError
-        return data, states
 
-    def _encode_data(self, data, h_init, states):
+    def encode_data(self, data, h_init=None):
         batch_length = data['obs'].shape[0]
-        h_t = h_init
+        states = defaultdict(list)
+
+        if h_init is None:
+            h_t = self._init_deter(data['obs'].shape[1])
+        else:
+            h_t = h_init
 
         for t in range(batch_length):
             obs = data['obs'][t]
@@ -281,8 +256,7 @@ class Agent(torch.nn.Module):
                 raise NotImplementedError
 
             for k, v in latents.items():
-                if k in states:
-                    states[k].append(v)
+                states[k].append(v)
             if t < batch_length - 1:
                 h_t = self.world_model.forward(h_t, z_t, data['action'][t])
 
@@ -320,7 +294,8 @@ class Agent(torch.nn.Module):
         self.ensemble.requires_grad_(False)
 
         states_t = states_0
-        act_t = self.actor(states_t).sample()
+        actor = self.actor(states_t)
+        act_t = actor.sample()
 
         # imagine rollouts
         states, actions, action_log_probs = [], [], []
@@ -328,8 +303,6 @@ class Agent(torch.nn.Module):
         info = {'entropy': 0, 'size': 0, 'std': 0}
         for _ in range(self.config.imag_horizon):
             states_t = self.world_model.step(states_t, act_t)
-            actor = self.actor(states_t)
-            act_t = actor.sample()
             log_prob = actor.log_prob(act_t.detach())
 
             # for ditto
@@ -350,6 +323,10 @@ class Agent(torch.nn.Module):
                 self.config.imag_horizon
             info['std'] += actor.stddev.mean() / \
                 self.config.imag_horizon
+
+            # sample next action
+            actor = self.actor(states_t)
+            act_t = actor.sample()
 
         self.states = torch.stack(states, dim=0)
         self.actions = torch.stack(actions, dim=0)
@@ -526,7 +503,7 @@ class Agent(torch.nn.Module):
 
     def set_expert_data_size(self, expert_sampler):
         self.expert_data_size = (
-            expert_sampler.sample_length, expert_sampler.n_batches)
+            expert_sampler.len_samples, expert_sampler.n_batches)
 
     def _get_z_dist(self):
         if self.config.z_dist == 'Categorical':

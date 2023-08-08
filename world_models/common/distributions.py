@@ -1,9 +1,10 @@
 from abc import ABC
 
+import torch
 import torch.distributions as D
 import torch.nn.functional as F
 
-from .utils import *
+from .utils import symlog, symexp
 
 
 class TruncatedNormal(D.Normal, ABC):
@@ -46,7 +47,8 @@ class CategoricalDist:
         self._dim = dim
 
     def sample(self):
-        return self._dist.rsample().reshape(*self.logits.shape[:-1], self._dim ** 2)
+        return self._dist.rsample().reshape(
+            *self.logits.shape[:-1], self._dim ** 2)
 
     def entropy(self):
         return self._dist.entropy()
@@ -67,24 +69,31 @@ class TwoHotDistSymlog:
         _mode = self.probs * self.buckets
         return symexp(torch.sum(_mode, dim=-1, keepdim=True))
 
-    # Inside OneHotCategorical, log_prob is calculated using only max element in targets
+    # Inside OneHotCategorical, log_prob is calculated using only max element
+    # in targets
     def log_prob(self, x):
         x = symlog(x)
         # x(time, batch, 1)
-        below = torch.sum((self.buckets <= x[..., None]).to(torch.int32), dim=-1) - 1
-        above = len(self.buckets) - torch.sum((self.buckets > x[..., None]).to(torch.int32), dim=-1)
+        below = torch.sum((self.buckets <= x[..., None]).to(torch.int32),
+                          dim=-1) - 1
+        above = len(self.buckets) - torch.sum((
+            self.buckets > x[..., None]).to(torch.int32), dim=-1)
         below = torch.clip(below, 0, len(self.buckets)-1)
         above = torch.clip(above, 0, len(self.buckets)-1)
         equal = (below == above)
 
-        dist_to_below = torch.where(equal, 1, torch.abs(self.buckets[below] - x))
-        dist_to_above = torch.where(equal, 1, torch.abs(self.buckets[above] - x))
+        dist_to_below = torch.where(equal, 1,
+                                    torch.abs(self.buckets[below] - x))
+        dist_to_above = torch.where(equal, 1,
+                                    torch.abs(self.buckets[above] - x))
         total = dist_to_below + dist_to_above
         weight_below = dist_to_above / total
         weight_above = dist_to_below / total
         target = (
-                F.one_hot(below, num_classes=len(self.buckets)) * weight_below[..., None] +
-                F.one_hot(above, num_classes=len(self.buckets)) * weight_above[..., None])
+                F.one_hot(below, num_classes=len(self.buckets)) *
+                weight_below[..., None] +
+                F.one_hot(above, num_classes=len(self.buckets)) *
+                weight_above[..., None])
         log_pred = self.logits - torch.logsumexp(self.logits, -1, keepdim=True)
         target = target.squeeze(-2)
 

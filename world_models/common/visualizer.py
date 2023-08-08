@@ -23,14 +23,15 @@ class Visualizer:
         self.log_dir = str(self.logger.writer.log_dir)
         self.eval_info = None
 
-    def visualize_wm(self, step, latent_sampler):
+    def visualize_wm(self, step, expert_sampler):
         print('Visualizing world model...')
         timer = Timer(0.04, sleep=True)
         self.env_driver.turn_on_visualization()
 
         for _ in range(3):
             self.env_driver.reset()
-            data = latent_sampler.sample(1, 64)
+            data = expert_sampler.sample(1, 64)
+            data = self.agent.encode_data(data)[0]
             if self.config.wm_visualization == 'prior':
                 states_t = data['state'][0]
 
@@ -105,7 +106,7 @@ class Visualizer:
         expert_data = {
             k: v[start_idx:start_idx + self.config.eval_steps, eps_idx]
             for k, v in self.expert_eval_data.items()}
-        expert_states = self.agent.encode_expert_data(expert_data)['state']
+        expert_states = self.agent.encode_data(expert_data)[0]['state']
         agent_states = torch.stack(agent_states, dim=0)
 
         if self.config.ditto_state == 'deter':
