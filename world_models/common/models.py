@@ -4,9 +4,9 @@ import torch
 import torch.distributions as D
 import torch.nn as nn
 
-from .distributions import act_case, TruncatedNormal, SymlogGaussian, \
+from .distributions import TruncatedNormal, SymlogGaussian, \
     TwoHotDistSymlog, CategoricalDist
-from .utils import symexp
+from .utils import symexp, act_case
 
 
 class BaseMLP(nn.Module):
