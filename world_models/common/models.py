@@ -4,9 +4,9 @@ import torch
 import torch.distributions as D
 import torch.nn as nn
 
-from .distributions import act_case, TruncatedNormal, SymlogGaussian, \
+from .distributions import TruncatedNormal, SymlogGaussian, \
     TwoHotDistSymlog, CategoricalDist
-from .utils import symexp
+from .utils import symexp, act_case
 
 
 class BaseMLP(nn.Module):
@@ -94,6 +94,16 @@ class GaussianMLP(BaseMLP):
     def __call__(self, x):
         dist = SymlogGaussian(self.architecture(x), 1)
         return D.Independent(dist, 1)
+
+
+class Discriminator(BaseMLP):
+    def __init__(self, config):
+        super(Discriminator, self).__init__(
+            2 * config.h_dim, 1, config.layers, config.act,
+            config.device)
+
+    def __call__(self, x):
+        return self.architecture(x)
 
 
 class TwoHotSymlogMLP(BaseMLP):

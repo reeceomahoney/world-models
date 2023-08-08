@@ -73,6 +73,12 @@ class Agent(torch.nn.Module):
         # ditto
         self.expert_states, self.expert_actions, self.h_last = None, None, None
 
+        # amp
+        self.disc = common.Discriminator(config)
+        self.disc_optim = torch.optim.Adam(
+            self.disc.parameters(), config.disc_lr, **ac_opt)
+        self.state_last = None
+
         # utility
         self.reward_ema = common.RewardEMA(config.device)
         self.device = config.device
@@ -328,6 +334,11 @@ class Agent(torch.nn.Module):
             actor = self.actor(states_t)
             act_t = actor.sample()
 
+        # collect extra state for amp
+        if self.config.amp:
+            self.state_last = self.world_model.step(
+                states_t, act_t).unsqueeze(0)
+
         self.states = torch.stack(states, dim=0)
         self.actions = torch.stack(actions, dim=0)
         self.action_log_probs = torch.stack(
@@ -338,6 +349,10 @@ class Agent(torch.nn.Module):
         # mean distance between agent and expert actions
         act_diff = torch.norm(self.actions - self.expert_actions[1:],
                               dim=-1).mean()
+
+        # amp training
+        if self.config.amp:
+            self._train_disc()
 
         # calculate rewards
         if self.config.Plan2Explore:
@@ -444,24 +459,76 @@ class Agent(torch.nn.Module):
         self._updates += 1
 
     def _calculate_ditto_rewards(self):
-        if self.config.ditto_state == 'logits':
-            states = self.states_logits
+        if self.config.amp:
+            states = torch.cat([self.states, self.state_last], dim=0)
+            states = torch.cat([states[:-1, :, :self.h_dim],
+                                states[1:, :, :self.h_dim]], dim=-1)
+            reward = torch.maximum(
+                torch.zeros_like(states).to(self.config.device),
+                1 - 0.25 * (self.disc(states) - 1)**2).mean(dim=-1)
         else:
-            states = self.states
+            if self.config.ditto_state == 'logits':
+                states = self.states_logits
+            else:
+                states = self.states
 
-        if self.config.ditto_state == 'deter':
-            expert_states = self.expert_states[1:, :, :self.config.h_dim]
-            states = states[..., :self.config.h_dim]
-        else:
-            expert_states = self.expert_states[1:]
+            if self.config.ditto_state == 'deter':
+                expert_states = self.expert_states[1:, :, :self.config.h_dim]
+                states = states[..., :self.config.h_dim]
+            else:
+                expert_states = self.expert_states[1:]
 
-        reward = torch.sum(expert_states * states, dim=-1)
-        reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
-                                 torch.norm(states, dim=-1)) ** 2)
+            reward = torch.sum(expert_states * states, dim=-1)
+            reward /= (torch.maximum(torch.norm(expert_states, dim=-1),
+                                     torch.norm(states, dim=-1)) ** 2)
 
         act_diff = torch.norm(self.actions - self.expert_actions[1:], dim=-1)
         reward -= self.config.act_diff_coeff * act_diff
         self.rewards = reward.unsqueeze(-1)
+
+    # -------------------------------------------------------------------------
+    # AMP
+
+    def _train_disc(self):
+        # stack states into pairs
+        expert_states = torch.cat([self.expert_states[1:-1, :, :self.h_dim],
+                                   self.expert_states[2:, :, :self.h_dim]],
+                                  dim=-1)
+        states = torch.cat([self.states[:-1, :, :self.h_dim],
+                            self.states[1:, :, :self.h_dim]],
+                           dim=-1).detach()
+        assert expert_states.shape == states.shape
+        assert expert_states.shape == (self.config.imag_horizon - 1,
+                                       self.config.ditto_batch_size,
+                                       2 * self.h_dim)
+
+        # generate labels
+        expert_pred = self.disc(expert_states)
+        agent_pred = self.disc(states)
+
+        # calculate loss
+        pred_loss = (expert_pred - 1).pow(2).mean() + \
+            (agent_pred + 1).pow(2).mean()
+        grad_penalty = self._calculate_gradient_penalty(expert_states)
+        loss = pred_loss + grad_penalty
+
+        # update
+        self.disc_optim.zero_grad()
+        loss.backward()
+        self.disc_optim.step()
+
+        # logging
+        self.logger.log('disc', {'pred_loss': pred_loss,
+                                 'grad_penalty': grad_penalty})
+
+    def _calculate_gradient_penalty(self, expert_states):
+        expert_pred = self.disc(expert_states.requires_grad_())
+        grad = torch.autograd.grad(inputs=expert_states, outputs=expert_pred,
+                                   grad_outputs=torch.ones_like(
+                                       expert_pred).to(self.device),
+                                   create_graph=True,
+                                   retain_graph=True)[0]
+        return torch.norm(grad).pow(2).mean()
 
     # -------------------------------------------------------------------------
     # Utility
