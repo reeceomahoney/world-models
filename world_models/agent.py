@@ -179,6 +179,9 @@ class Agent(torch.nn.Module):
         assert data['obs'].shape == (
             self.config.batch_length, self.config.ditto_wm_batch_size,
             self.obs_dim), data['obs'].shape
+        assert data['action'].shape == (
+            self.config.batch_length, self.config.ditto_wm_batch_size,
+            self.act_dim), data['action'].shape
 
         # initialise non-initial states with the last hidden state
         if expert_sampler.idx == 1:

@@ -49,7 +49,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     nJoints_ = gvDim_ - 6;
 
     /// env data
-    obDim_ = 36;
+    obDim_ = 40;
     actionDim_ = nJoints_;
 
     /// initialise containers
@@ -104,16 +104,6 @@ class ENVIRONMENT : public RaisimGymEnv {
     /* jointPgain.tail(nJoints_).setConstant(100.0); */
     /* jointDgain.tail(nJoints_).setConstant(0.6); */
     anymal_->setPdGains(jointPgain, jointDgain);
-
-    
-    /// Set the material property for each of the collision bodies of the robot
-    for (auto &collisionBody: anymal_->getCollisionBodies()) {
-        if (collisionBody.colObj->name.find("FOOT") != std::string::npos) {
-            collisionBody.setMaterial("foot_material");
-        } else {
-            collisionBody.setMaterial("robot_material");
-        }
-    }
 
     /// visualize if it is the first environment
     if (visualizable_) {
@@ -216,6 +206,19 @@ class ENVIRONMENT : public RaisimGymEnv {
     jointAngles_ = gc_.tail(nJoints_);
     jointVelocities_ = gv_.tail(nJoints_);
 
+    contacts_.setZero();
+    for (auto& contact: anymal_->getContacts()) {
+        if (contact.getlocalBodyIndex() == anymal_->getBodyIdx("LF_SHANK")) {
+            contacts_[0] = 1.;
+        } else if (contact.getlocalBodyIndex() == anymal_->getBodyIdx("RF_SHANK")) {
+            contacts_[1] = 1.;
+        } else if (contact.getlocalBodyIndex() == anymal_->getBodyIdx("LH_SHANK")) {
+            contacts_[2] = 1.;
+        } else if (contact.getlocalBodyIndex() == anymal_->getBodyIdx("RH_SHANK")) {
+            contacts_[3] = 1.;
+        }
+    }
+
     /// add nose to velocity observations
     if (addVelNoise_) {
         for (int i = 0; i < nJoints_; i++) {
@@ -234,6 +237,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     obDouble_.segment(18, nJoints_) = jointVelocities_;
     obDouble_.segment(30, 3) = bodyLinearVel_;
     obDouble_.segment(33, 3) = desiredVel_;
+    obDouble_.segment(36, 4) = contacts_;
   }
 
   void observe(Eigen::Ref<EigenVec> ob) final {
@@ -263,7 +267,7 @@ class ENVIRONMENT : public RaisimGymEnv {
   void setTarget(const Eigen::Ref<EigenVec>& decodedObs) {
       raisim::Vec<3> euler;
       raisim::Vec<4> quat;
-      Eigen::Matrix<double, 36, 1> obs = decodedObs.cast<double>();
+      Eigen::Matrix<double, 40, 1> obs = decodedObs.cast<double>();
 
       euler[0] = obs[0];
       euler[1] = obs[1];
@@ -298,7 +302,7 @@ class ENVIRONMENT : public RaisimGymEnv {
   Eigen::MatrixXd expertDataset_;
 
   Eigen::Matrix<double, 40, 1> init_data_;
-  Eigen::Matrix<double, 36, 1> obDouble_;
+  Eigen::Matrix<double, 40, 1> obDouble_;
   Eigen::Matrix<double, 19, 1> gc_init_, gc_rand_, pos_var_;
   Eigen::Matrix<double, 18, 1> gv_init_, gv_rand_, vel_var_, gf_;
 
@@ -307,6 +311,7 @@ class ENVIRONMENT : public RaisimGymEnv {
 
   Eigen::Matrix<double, 12, 1> actionMean_, actionStd_, torque_;
   Eigen::Matrix<double, 12, 1> jointTarget_, jointPositionErrors_, jointVelocities_, jointAngles_;
+  Eigen::Matrix<double, 4, 1> contacts_;
   Eigen::Matrix<double, 3, 1> bodyLinearVel_, bodyAngularVel_, desiredVel_, maxDesiredVel_, orientation_;
 
   int footIndices_[4] = {3, 6, 9, 12};

@@ -5,7 +5,7 @@ import torch.distributions as D
 import torch.nn as nn
 
 from .distributions import TruncatedNormal, SymlogGaussian, \
-    TwoHotDistSymlog, CategoricalDist
+    TwoHotDistSymlog, CategoricalDist, DecoderDist
 from .utils import symexp, act_case
 
 
@@ -61,8 +61,7 @@ class Decoder(BaseMLP):
         super(Decoder, self).__init__(in_dim, out_dim, layers, act, device)
 
     def __call__(self, x):
-        dist = D.Normal(symexp(self.architecture(x)), 1)
-        return D.Independent(dist, 1)
+        return DecoderDist(symexp(self.architecture(x)))
 
 
 class MultivariateGaussianMLP(BaseMLP):

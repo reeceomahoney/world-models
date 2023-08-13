@@ -34,6 +34,29 @@ class SymlogGaussian(D.Normal, ABC):
         return super().log_prob(symlog(x))
 
 
+class DecoderDist:
+    """
+    Distribution for decoder output, which is a mixture of Gaussian for most
+    of the states and a Categorical for the last four contact states which are
+    parameterised by 8 logits.
+    """
+    def __init__(self, x):
+        self.obs_dim = x.shape[-1]
+        self.obs_dist = D.Normal(x[..., :-4], 1)
+        self.contact_dist = D.Bernoulli(logits=x[..., -4:])
+
+    def mode(self):
+        obs = self.obs_dist.mode
+        contacts = self.contact_dist.mode
+        return torch.cat([obs, contacts], dim=-1)
+
+    def log_prob(self, x):
+        x = symexp(x)
+        obs_lp = self.obs_dist.log_prob(x[..., :-4])
+        contact_lp = self.contact_dist.log_prob(x[..., -4:])
+        return torch.cat([obs_lp, contact_lp], dim=-1).sum(dim=-1)
+
+
 class CategoricalDist:
     def __init__(self, logits, unimix_ratio, dim):
         probs = F.softmax(logits, dim=-1)

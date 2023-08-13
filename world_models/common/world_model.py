@@ -57,7 +57,7 @@ class WorldModel(nn.Module):
             return self._encoder(torch.cat((h_t, obs), dim=-1))[0].sample()
 
     def decode(self, state):
-        return self._decoder(state).mode
+        return self._decoder(state).mode()
 
     def step(self, state, action):
         # step latent state in imagination
@@ -88,7 +88,7 @@ class WorldModel(nn.Module):
         return self._cont_model(state).sample()
 
     def predict(self, state):
-        obs_1 = symexp(self._decoder(state).mode)
+        obs_1 = symexp(self._decoder(state).mode())
         reward_1 = self._reward_model(state).mode()
         cont_1 = self._cont_model(state).sample()
         return obs_1, reward_1, cont_1

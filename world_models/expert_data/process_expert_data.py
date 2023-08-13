@@ -25,8 +25,8 @@ def read_bag(bag_dir, bag_name, topics):
     return csvs
 
 
-data_dir = 'fwd_10k'
-obs_dim = 49
+data_dir = 'fwd_cont_10k'
+obs_dim = 53
 eval_eps = 100
 
 # uncomment this if you're working with a bag file
@@ -59,7 +59,7 @@ assert states.shape[0] % 64 == 0
 print(f'Expert data shape: {states.shape}')
 
 # initialization data
-init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 9))
+init_data = np.zeros((states.shape[0], eval_eps, obs_dim - 13))
 init_data[..., 2] = states[:, -eval_eps:, 0]  # height
 init_data[..., 3] = 1  # orientation
 init_data[..., 7:19] = states[:, -eval_eps:, 4:16]  # joint angles

@@ -30,7 +30,7 @@ class Visualizer:
 
         for _ in range(3):
             self.env_driver.reset()
-            data = expert_sampler.sample(1, 64)
+            data = expert_sampler.sample(64, 1)
             data = self.agent.encode_data(data)[0]
             if self.config.wm_visualization == 'prior':
                 states_t = data['state'][0]
@@ -46,8 +46,7 @@ class Visualizer:
                     obs_target = self.agent.world_model.decode(states_t)
                 else:
                     raise NotImplementedError
-                self.env_driver.set_target(
-                    obs_target.detach().cpu().numpy())
+                self.env_driver.set_target(obs_target.detach().cpu().numpy())
                 timer.end()
 
         self.env_driver.turn_off_visualization()
