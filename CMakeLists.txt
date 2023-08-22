@@ -4,7 +4,9 @@ project(world_models)
 
 set(CMAKE_CXX_STANDARD 17)
 
-list(APPEND CMAKE_PREFIX_PATH $ENV{LOCAL_INSTALL})
+list(APPEND CMAKE_PREFIX_PATH 
+        $ENV{LOCAL_INSTALL}
+        ~/.virtualenvs/wm/lib/python3.8/site-packages/pybind11/share/cmake/pybind11)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/world_models/raisim_gym/build)
 

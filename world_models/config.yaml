@@ -21,9 +21,9 @@ default:
   save_datasets: False
 
   # Model
-  h_dim: 256
+  h_dim: 512
   z_dim: 1024
-  layers: [256]
+  layers: [512, 512]
   act: silu
   z_dist: 'Categorical'
   ensemble_size: 1
@@ -88,14 +88,14 @@ raisim:
     turnVelMax: 0.625
 
 ditto:
-  ditto_dataset: 'fwd_cont_10k'
+  ditto_dataset: 'rand_10k'
   ditto_wm_steps: 5e5
   ditto_wm_eval_every: 1e4
   ditto_il_steps: 1e8
-  ditto_wm_batch_size: 512
+  ditto_wm_batch_size: 256
   ditto_batch_size: 512
   ditto_state: 'deter'  # 'deter', 'full', or 'logits'
-  act_diff_coeff: 1
+  act_diff_coeff: 0
   wm_visualization: 'post'
 
 debug:
