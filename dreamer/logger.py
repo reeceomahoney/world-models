@@ -51,7 +51,7 @@ class Logger:
             log_dir = Path("/data2/reece/raisim")
 
         # creates a new folder for each run and saves the config file
-        saver = FileSaver(log_dir, [home_path / "config.yaml"])
+        saver = FileSaver(log_dir, [home_path / "scripts/config.yaml"])
         return saver.data_dir
 
     def log(self, tag: str, info: dict):

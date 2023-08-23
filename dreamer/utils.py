@@ -100,11 +100,9 @@ def init_config(config_path, args):
             config_dict[key] = value
 
     # ditto
-    config_dict["ditto"] = False
-    if args.ditto:
-        config_dict["ditto"] = True
-        for key, value in full_config_dict["ditto"].items():
-            config_dict[key] = value
+    config_dict["ditto"] = True
+    for key, value in full_config_dict["ditto"].items():
+        config_dict[key] = value
 
     # policy training mode
     if args.agent is not None:
@@ -152,5 +150,4 @@ def load_expert_data(path, obs_dim, device):
     expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
     obs = symlog(expert_data[..., :obs_dim])
     action = expert_data[..., obs_dim:]
-    cont = torch.ones((*action.shape[:2], 1)).to(device)
-    return {"obs": obs, "cont": cont, "action": action}
+    return {"obs": obs, "action": action}

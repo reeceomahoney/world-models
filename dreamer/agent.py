@@ -4,8 +4,7 @@ from collections import defaultdict
 import torch
 import torch.distributions as D
 
-import world_models.common as common
-
+from . import models, utils, distributions
 
 class Agent(torch.nn.Module):
     def __init__(self, obs_dim, act_dim, act_range, logger, config):
@@ -17,24 +16,24 @@ class Agent(torch.nn.Module):
         self.z_dim = config.z_dim
 
         # models
-        self.world_model = common.WorldModel(obs_dim, act_dim, config)
-        self.ensemble = common.Ensemble(act_dim, config)
+        self.world_model = models.WorldModel(obs_dim, act_dim, config)
+        self.ensemble = models.Ensemble(act_dim, config)
 
         self.act_dim = act_dim
         self.act_range = act_range
-        self.task_actor = common.Actor(act_dim, act_range, config)
-        self.expl_actor = common.Actor(act_dim, act_range, config)
+        self.task_actor = models.Actor(act_dim, act_range, config)
+        self.expl_actor = models.Actor(act_dim, act_range, config)
 
         if config.critic_model == "Gaussian":
-            self.task_critic = common.GaussianMLP(config)
-            self.task_slow_critic = common.GaussianMLP(config).requires_grad_(False)
-            self.expl_critic = common.GaussianMLP(config)
-            self.expl_slow_critic = common.GaussianMLP(config).requires_grad_(False)
+            self.task_critic = models.GaussianMLP(config)
+            self.task_slow_critic = models.GaussianMLP(config).requires_grad_(False)
+            self.expl_critic = models.GaussianMLP(config)
+            self.expl_slow_critic = models.GaussianMLP(config).requires_grad_(False)
         elif config.critic_model == "TwoHot":
-            self.task_critic = common.TwoHotSymlogMLP(config)
-            self.task_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
-            self.expl_critic = common.TwoHotSymlogMLP(config)
-            self.expl_slow_critic = common.TwoHotSymlogMLP(config).requires_grad_(False)
+            self.task_critic = models.TwoHotSymlogMLP(config)
+            self.task_slow_critic = models.TwoHotSymlogMLP(config).requires_grad_(False)
+            self.expl_critic = models.TwoHotSymlogMLP(config)
+            self.expl_slow_critic = models.TwoHotSymlogMLP(config).requires_grad_(False)
 
         # training
         wm_opt = {"eps": config.model_eps, "weight_decay": config.weight_decay}
@@ -76,7 +75,7 @@ class Agent(torch.nn.Module):
         self.expert_states, self.expert_actions, self.h_last = None, None, None
 
         # utility
-        self.reward_ema = common.RewardEMA(config.device)
+        self.reward_ema = utils.RewardEMA(config.device)
         self.device = config.device
         self.set_actor_critic()
 
@@ -85,7 +84,7 @@ class Agent(torch.nn.Module):
 
     def __call__(self, h_t, obs, deterministic=False):
         with torch.no_grad():
-            obs = common.symlog(torch.Tensor(obs).to(self.device))
+            obs = utils.symlog(torch.Tensor(obs).to(self.device))
             z_t = self.world_model.encode(h_t, obs)
             action = self.actor(torch.cat((h_t, z_t), dim=-1)).sample()
             if deterministic:
@@ -552,7 +551,7 @@ class Agent(torch.nn.Module):
 
     def _get_z_dist(self):
         if self.config.z_dist == "Categorical":
-            return lambda x: common.CategoricalDist(
+            return lambda x: distributions.CategoricalDist(
                 x, self.config.unimix_ratio, dim=int(math.sqrt(self.config.z_dim))
             )
         elif self.config.z_dist == "Gaussian":

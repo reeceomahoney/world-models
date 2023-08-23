@@ -3,9 +3,9 @@ import os
 import numpy as np
 import torch
 import gymnasium as gym
-import world_models.raisim_gym as raisim_gym
 from ruamel.yaml import dump, RoundTripDumper
 
+from . import raisim_gym
 from .utils import symlog
 
 
@@ -100,7 +100,7 @@ class RaisimDriver(DriverBase):
     def __init__(self, config, config_dict):
         super(RaisimDriver, self).__init__(config)
         self._raisim_config = config_dict
-        rsc_path = os.path.dirname(os.path.realpath(__file__)) + "/../raisim_gym/rsc"
+        rsc_path = os.path.dirname(os.path.realpath(__file__)) + "/raisim_gym/rsc"
 
         self._env = raisim_gym.VecEnv(
             raisim_gym.RaisimGymEnv(
