@@ -23,38 +23,40 @@ class Logger:
         self.config = config
         self.info = {}
         self.start_time = time.time()
-        self.print_keys = ['world_model/pred_loss',
-                           'world_model/kl_loss',
-                           'actor_critic_loss/policy_loss',
-                           'actor_critic_loss/value_loss',
-                           'actor_reward/reward',
-                           'eval/ditto_reward']
+        self.print_keys = [
+            "world_model/pred_loss",
+            "world_model/kl_loss",
+            "actor_critic_loss/policy_loss",
+            "actor_critic_loss/value_loss",
+            "actor_reward/reward",
+            "eval/ditto_reward",
+        ]
 
         log_dir = self._set_log_dir()
         self.writer = SummaryWriter(log_dir, flush_secs=10)
 
         # this avoids multilines being saved as separate runs
-        layout = {'imag': {'reward_ema': ['Multiline', ['reward_ema/05',
-                                                        'reward_ema/95']]},
-                  'rewards': {'reward': ['Multiline', ['reward/mean',
-                                                       'reward/var']]}}
+        layout = {
+            "imag": {"reward_ema": ["Multiline", ["reward_ema/05", "reward_ema/95"]]},
+            "rewards": {"reward": ["Multiline", ["reward/mean", "reward/var"]]},
+        }
         self.writer.add_custom_scalars(layout)
 
     def _set_log_dir(self):
         home_path = Path(__file__).parents[1].absolute()
-        log_dir = home_path / 'logs' / self.config.env_name
+        log_dir = home_path / "logs" / self.config.env_name
 
         # server specific log directory
-        if socket.gethostname() == 'bdemoss-3090':
-            log_dir = Path('/data2/reece/raisim')
+        if socket.gethostname() == "bdemoss-3090":
+            log_dir = Path("/data2/reece/raisim")
 
         # creates a new folder for each run and saves the config file
-        saver = FileSaver(log_dir, [home_path / 'config.yaml'])
+        saver = FileSaver(log_dir, [home_path / "config.yaml"])
         return saver.data_dir
 
     def log(self, tag: str, info: dict):
         for k, v in info.items():
-            self.info[f'{tag}/{k}'] = v
+            self.info[f"{tag}/{k}"] = v
 
     def publish(self, step: int):
         dt = time.time() - self.start_time

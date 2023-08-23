@@ -12,21 +12,19 @@ from tensorboard import program
 
 class Config:
     def __init__(self, config_dict):
-
         for key, value in config_dict.items():
             setattr(self, key, value)
 
 
 class FileSaver:
     def __init__(self, log_dir, save_items):
-        self._data_dir = log_dir / \
-            datetime.now().strftime('%b-%d_%H-%M-%S') / 'logging'
+        self._data_dir = log_dir / datetime.now().strftime("%b-%d_%H-%M-%S") / "logging"
         self._data_dir.mkdir(parents=True, exist_ok=True)
-        (self._data_dir / '../models').mkdir(parents=True, exist_ok=True)
+        (self._data_dir / "../models").mkdir(parents=True, exist_ok=True)
 
         if save_items is not None:
             for save_item in save_items:
-                copy(str(save_item), str(self._data_dir / '..'))
+                copy(str(save_item), str(self._data_dir / ".."))
 
     @property
     def data_dir(self):
@@ -84,56 +82,58 @@ class RewardEMA:
 def tensorboard_launcher(directory_path):
     # learning visualizer
     tb = program.TensorBoard()
-    tb.configure(argv=[None, '--logdir', directory_path])
+    tb.configure(argv=[None, "--logdir", directory_path])
     url = tb.launch()
-    print("Tensorboard session created: "+url)
+    print("Tensorboard session created: " + url)
     webbrowser.open_new(url)
 
 
 def init_config(config_path, args):
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         full_config_dict = YAML().load(f)
-    config_dict = full_config_dict['default']
-    config_dict['env_name'] = args.env
+    config_dict = full_config_dict["default"]
+    config_dict["env_name"] = args.env
 
     # raisim mode
-    if config_dict['env_name'] == 'raisim':
-        for key, value in full_config_dict['raisim'].items():
+    if config_dict["env_name"] == "raisim":
+        for key, value in full_config_dict["raisim"].items():
             config_dict[key] = value
 
     # ditto
-    config_dict['ditto'] = False
+    config_dict["ditto"] = False
     if args.ditto:
-        config_dict['ditto'] = True
-        for key, value in full_config_dict['ditto'].items():
+        config_dict["ditto"] = True
+        for key, value in full_config_dict["ditto"].items():
             config_dict[key] = value
 
     # policy training mode
     if args.agent is not None:
-        config_dict['log_every'] = 5e2
-        config_dict['eval_every'] = 2e3
-        config_dict['ditto_wm_steps'] = 0
+        config_dict["log_every"] = 5e2
+        config_dict["eval_every"] = 2e3
+        config_dict["ditto_wm_steps"] = 0
 
     # debug mode
-    if hasattr(sys, 'gettrace') and sys.gettrace() is not None and \
-            'debug' in full_config_dict:
-        print('debug mode')
-        for key, value in full_config_dict['debug'].items():
+    if (
+        hasattr(sys, "gettrace")
+        and sys.gettrace() is not None
+        and "debug" in full_config_dict
+    ):
+        print("debug mode")
+        for key, value in full_config_dict["debug"].items():
             config_dict[key] = value
 
     config = Config(config_dict)
     config.time_limit //= config.action_repeat
     config.eval_steps //= config.action_repeat
-    config.train_every = (config.batch_length * config.batch_size) // \
-        config.train_ratio
+    config.train_every = (config.batch_length * config.batch_size) // config.train_ratio
 
     return config, config_dict
 
 
 def act_case(act):
-    if act == 'elu':
+    if act == "elu":
         activation = torch.nn.ELU
-    elif act == 'silu':
+    elif act == "silu":
         activation = torch.nn.SiLU
     else:
         activation = torch.nn.ReLU
@@ -153,4 +153,4 @@ def load_expert_data(path, obs_dim, device):
     obs = symlog(expert_data[..., :obs_dim])
     action = expert_data[..., obs_dim:]
     cont = torch.ones((*action.shape[:2], 1)).to(device)
-    return {'obs': obs, 'cont': cont, 'action': action}
+    return {"obs": obs, "cont": cont, "action": action}

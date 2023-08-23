@@ -1,7 +1,7 @@
 def main(config, env_driver, agent, expert_sampler, logger, visualizer):
     agent.set_actor_critic()
 
-    print('\nTraining world model...')
+    print("\nTraining world model...")
     for step in range(int(config.ditto_wm_steps)):
         agent.train_world_model(expert_sampler)
 
@@ -10,7 +10,7 @@ def main(config, env_driver, agent, expert_sampler, logger, visualizer):
         if step % config.log_every == 0:
             logger.publish(step)
 
-    print('\nImitation learning...')
+    print("\nImitation learning...")
     for step in range(int(config.ditto_il_steps)):
         agent.ditto_step(expert_sampler)
 
