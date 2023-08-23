@@ -1,4 +1,4 @@
-[submodule "world_models/raisim_gym/dependencies/networks_minimal"]
-	path = world_models/raisim_gym/dependencies/networks_minimal
+[submodule "dreamer/raisim_gym/dependencies/networks_minimal"]
+	path = dreamer/raisim_gym/dependencies/networks_minimal
 	url = git@github.com:gsiddhant/networks_minimal.git
 	branch = header
