@@ -6,6 +6,7 @@ import torch.distributions as D
 
 from . import models, utils, distributions
 
+
 class Agent(torch.nn.Module):
     def __init__(self, obs_dim, act_dim, act_range, logger, config):
         super(Agent, self).__init__()
@@ -21,7 +22,10 @@ class Agent(torch.nn.Module):
 
         self.act_dim = act_dim
         self.act_range = act_range
-        self.task_actor = models.Actor(act_dim, act_range, config)
+        if config.env_name == "CartPole-v1":
+            self.task_actor = models.CategoricalActor(act_dim, config)
+        else:
+            self.task_actor = models.Actor(act_dim, act_range, config)
         self.expl_actor = models.Actor(act_dim, act_range, config)
 
         if config.critic_model == "Gaussian":
@@ -84,11 +88,14 @@ class Agent(torch.nn.Module):
 
     def __call__(self, h_t, obs, deterministic=False):
         with torch.no_grad():
-            obs = utils.symlog(torch.Tensor(obs).to(self.device))
+            obs = self.symlog(obs)
             z_t = self.world_model.encode(h_t, obs)
-            action = self.actor(torch.cat((h_t, z_t), dim=-1)).sample()
+
             if deterministic:
                 action = self.actor(torch.cat((h_t, z_t), dim=-1)).mode
+            else:
+                action = self.actor(torch.cat((h_t, z_t), dim=-1)).sample()
+
             h_t1 = self.world_model.forward(h_t, z_t, action)
         return h_t1, action
 
@@ -98,6 +105,7 @@ class Agent(torch.nn.Module):
             z_t1 = self.world_model.dynamics(h_t1)
             state = torch.cat((h_t1, z_t1), dim=-1)
             obs_1, reward_1, cont_1 = self.world_model.predict(state)
+            obs_1 = self.symexp(obs_1)
         return (obs_1, reward_1, cont_1), state, action
 
     # -------------------------------------------------------------------------
@@ -137,6 +145,7 @@ class Agent(torch.nn.Module):
         expert_sample = expert_sampler.sample(
             self.config.imag_horizon + 1, self.config.ditto_batch_size
         )
+        expert_sample = {k: v.to(self.device) for k, v in expert_sample.items()}
         expert_states = self.encode_data(expert_sample)[0]
         expert_states = {k: v.detach() for k, v in expert_states.items()}
 
@@ -185,6 +194,7 @@ class Agent(torch.nn.Module):
         """
         # sample data sequentially to preserve temporal correlations
         data = next(expert_sampler)
+        data = {k: v.to(self.device) for k, v in data.items()}
 
         assert data["obs"].shape == (
             self.config.batch_length,
@@ -475,8 +485,8 @@ class Agent(torch.nn.Module):
             value_loss -= values.log_prob(slow_critic.mode().detach())
         value_loss = (self.weights[:-1] * value_loss.unsqueeze(-1)).mean()
 
-        self.actor.requires_grad_(True)
         self.logger.log("critic", {"values": values.mode().mean()})
+        self.actor.requires_grad_(True)
         return value_loss
 
     def _update_slow_critic(self):
@@ -563,3 +573,29 @@ class Agent(torch.nn.Module):
             x, y = x.dist, y.dist
             min_kl = 1.0
         return torch.clip(D.kl.kl_divergence(x, y), min=min_kl)
+
+    def symlog(self, x):
+        if self.config.env_name == "raisim":
+            return torch.cat(
+                (
+                    utils.symlog(
+                        torch.Tensor(x[..., : self.obs_dim - 4]).to(self.device)
+                    ),
+                    x[..., self.obs_dim - 4 :],
+                ),
+                dim=-1,
+            )
+        else:
+            return utils.symlog(x)
+
+    def symexp(self, x):
+        if self.config.env_name == "raisim":
+            return torch.cat(
+                (
+                    utils.symexp(x[..., : self.obs_dim - 4]),
+                    x[..., self.obs_dim - 4 :],
+                ),
+                dim=-1,
+            )
+        else:
+            return utils.symexp(x)

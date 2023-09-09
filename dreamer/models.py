@@ -60,8 +60,20 @@ class Actor(BaseMLP):
         mean, std = torch.split(x, self._act_dim, dim=-1)
         mean = torch.tanh(mean)
         std = (self._max_std - self._min_std) * torch.sigmoid(std + 2.0) + self._min_std
-        dist = TruncatedNormal(mean, std, -self._act_range, self._act_range)
-        return D.Independent(dist, 1)
+
+
+class CategoricalActor(BaseMLP):
+    def __init__(self, act_dim, config):
+        super(CategoricalActor, self).__init__(
+            config.h_dim + config.z_dim,
+            act_dim,
+            config.layers,
+            config.act,
+            config.device,
+        )
+
+    def __call__(self, x):
+        return torchd.Bernoulli(logits=self.architecture(x))
 
 
 class Decoder(BaseMLP):

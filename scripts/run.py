@@ -5,8 +5,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-import world_models.common as common
-from world_models.agent import Agent
+import dreamer
 
 
 # parse args
@@ -18,21 +17,21 @@ parser.add_argument("--plot", type=str, default=False)
 args = parser.parse_args()
 
 # paths
-home_path = Path(__file__).parent.absolute()
+home_path = Path(__file__).parents[1].absolute()
 agent_path = home_path / args.agent
 
-config, config_dict = common.init_config(
+config, config_dict = dreamer.utils.init_config(
     Path(agent_path).parents[1] / "config.yaml", args
 )
 
 if config.env_name == "raisim":
-    env_driver = common.RaisimDriver(config, config_dict)
+    env_driver = dreamer.driver.RaisimDriver(config, config_dict)
     env_driver.turn_on_visualization()
 else:
-    env_driver = common.GymDriver(config, render=True)
+    env_driver = dreamer.driver.GymDriver(config, render=True)
 
 expert_init_path = (
-    home_path / "world_models/expert_data/" / config.ditto_dataset / "expert_init.npy"
+    home_path / "data" / config.ditto_dataset / "expert_init.npy"
 )
 expert_init_data = (
     torch.tensor(np.load(expert_init_path)).to(torch.float32).to(config.device)
@@ -42,11 +41,11 @@ env_driver.load_expert_data(expert_init_data)
 
 agent_state_dict = torch.load(agent_path, map_location=config.device)
 
-agent = Agent(*env_driver.env_info(), None, config)
+agent = dreamer.agent.Agent(*env_driver.env_info(), None, config)
 agent.load_state_dict(agent_state_dict, strict=False)
 
 obs, h_t, action = env_driver.reset()
-timer = common.Timer(config.control_dt, True)
+timer = dreamer.utils.Timer(config.control_dt, True)
 
 joint_angles, joint_targets = [], []
 for _ in range(5):
@@ -54,8 +53,8 @@ for _ in range(5):
         timer.start()
         obs, reward, done = env_driver(action)
         h_t, action = agent(h_t, obs, deterministic=True)
-        joint_angles.append(common.utils.symexp(obs[0, 3:15]).cpu().numpy())
-        joint_targets.append(action[0].cpu().numpy())
+        # joint_angles.append(dreamer.utils.symexp(obs[1, 3:15]).cpu().numpy())
+        # joint_targets.append(action[0].cpu().numpy())
         timer.end()
         if done or step == config.eval_steps - 1:
             obs, h_t, action = env_driver.reset()

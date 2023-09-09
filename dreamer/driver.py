@@ -41,7 +41,7 @@ class DriverBase:
 
 
 class GymDriver(DriverBase):
-    def __init__(self, config, render=False):
+    def __init__(self, config, render=True):
         super(GymDriver, self).__init__(config)
         self._config = config
         self._render = render
@@ -50,9 +50,10 @@ class GymDriver(DriverBase):
     def __call__(self, action):
         self.step += 1
         obs, reward, done = None, None, None
+        action = [int(action.item())]
         for _ in range(self.config.action_repeat):
             obs, reward, done = self._env.step(action)[:3]
-        return obs, reward, done
+        return self._to_ten(obs), reward, done
 
     def reset(self):
         if self._config.record:
@@ -67,10 +68,16 @@ class GymDriver(DriverBase):
     def env_info(self):
         obs_dim = self._env.observation_space.shape[-1]
         act_dim = self._env.action_space.shape[-1]
-        act_max = self._env.action_space.high[0][0]
+        try:
+            act_max = self._env.action_space.high[0][0]
+        except AttributeError:
+            act_max = None
         return obs_dim, act_dim, act_max
 
-    def close(self):
+    def turn_on_visualization(self):
+        pass
+
+    def turn_off_visualization(self):
         self._env.close()
 
     def _make_env(self):
@@ -88,7 +95,7 @@ class GymDriver(DriverBase):
         elif self._render:
             self._env = gym.vector.make(
                 self._config.env_name,
-                render_mode="human",
+                # render_mode="human",
                 num_envs=self._config.num_envs,
             )
 
@@ -108,7 +115,7 @@ class RaisimDriver(DriverBase):
             ),
             normalize_ob=False,
         )
-        self._env.turn_off_visualization()
+        # self._env.turn_off_visualization()
 
         self.expert_data = None
         self.start_idx = None
@@ -116,7 +123,7 @@ class RaisimDriver(DriverBase):
 
     def __call__(self, action):
         self.step += 1
-        obs = symlog(self._to_ten(self._env.observe()))
+        obs = self._to_ten(self._env.observe())
         reward, done = self._env.step(to_np(action))
         return obs, self._to_ten(reward).unsqueeze(-1), self._to_ten(done).unsqueeze(-1)
 

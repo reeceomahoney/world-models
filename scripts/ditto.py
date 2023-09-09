@@ -19,9 +19,7 @@ def setup():
     home_path = Path(__file__).parents[1].absolute()
     config_path = home_path / "scripts/config.yaml"
     config, config_dict = dreamer.utils.init_config(config_path, args)
-    expert_path = (
-        home_path / "data" / config.ditto_dataset / "expert.npy"
-    )
+    expert_path = home_path / "data" / config.ditto_dataset / "expert.npy"
     print(f"Using expert data: {config.ditto_dataset}")
 
     # env
@@ -38,10 +36,9 @@ def setup():
         agent_state_dict = torch.load(
             home_path / args.agent, map_location=config.device
         )
-        change_actor_critic = False
+        change_actor_critic = True
         if change_actor_critic:
-            # These are for loading networks different to the current wm,
-            # change bool if needed
+            # These are for loading networks different to the current wm, change bool if needed
             agent_state_dict = OrderedDict(
                 [(k, v) for k, v in agent_state_dict.items() if "actor" not in k]
             )
@@ -59,22 +56,30 @@ def setup():
         expert_eval_path, obs_dim, config.device
     )
 
-    expert_init_path = expert_path.parent / "expert_init.npy"
-    expert_init_data = (
-        torch.tensor(np.load(expert_init_path)).to(torch.float32).to(config.device)
-    )
+    if args.env == "raisim":
+        expert_init_path = expert_path.parent / "expert_init.npy"
+        expert_init_data = (
+            torch.tensor(np.load(expert_init_path)).to(torch.float32).to(config.device)
+        )
 
-    env_driver.load_expert_data(expert_init_data)
-    agent.set_expert_data_size(expert_sampler)
-    visualizer = dreamer.visualizer.Visualizer(
-        config, agent, env_driver, logger, expert_eval_data
-    )
+        env_driver.load_expert_data(expert_init_data)
+        agent.set_expert_data_size(expert_sampler)
+    
+    if args.env == "raisim":
+        visualizer = dreamer.visualizer.Visualizer(
+            config, agent, env_driver, logger, expert_eval_data
+        )
+    else:
+        visualizer = dreamer.visualizer.GymVisualizer(
+            config, agent, env_driver, logger, expert_eval_data
+        )
 
     return config, agent, expert_sampler, logger, visualizer
 
 
 def main():
     config, agent, expert_sampler, logger, visualizer = setup()
+
     # avoids loading exploration actor and critic
     agent.set_actor_critic()
 

@@ -1,6 +1,9 @@
-from .utils import Timer
+from .utils import Timer, symlog, symexp
 
+import numpy as np
+import gymnasium as gym
 import torch
+from PIL import Image
 
 
 class Visualizer:
@@ -23,6 +26,7 @@ class Visualizer:
 
         self.log_dir = str(self.logger.writer.log_dir)
         self.eval_info = None
+        self.tot_steps = self.config.eval_eps * self.config.eval_steps
 
     def visualize_wm(self, step, expert_sampler):
         print("Visualizing world model...")
@@ -39,10 +43,10 @@ class Visualizer:
             for i in range(data["state"].shape[0]):
                 timer.start()
                 if self.config.wm_visualization == "post":
-                    obs_target = self.agent.world_model.decode(data["state"][i])
+                    obs_target = symexp(self.agent.world_model.decode(data["state"][i]))
                 elif self.config.wm_visualization == "prior":
                     states_t = self.agent.world_model.step(states_t, data["action"][i])
-                    obs_target = self.agent.world_model.decode(states_t)
+                    obs_target = symexp(self.agent.world_model.decode(states_t))
                 else:
                     raise NotImplementedError
                 self.env_driver.set_target(obs_target.detach().cpu().numpy())
@@ -63,7 +67,6 @@ class Visualizer:
 
         self.env_driver.turn_on_visualization()
         timer = Timer(self.config.control_dt, self.config.real_time_eval)
-        n = self.config.eval_eps * self.config.eval_steps
 
         for _ in range(self.config.eval_eps):
             agent_states = self._calculate_ditto_reward(agent_states)
@@ -73,8 +76,10 @@ class Visualizer:
                 timer.start()
                 preds, state, action = self.agent.predict(h_t, obs)
                 obs, reward, done = self.env_driver(action)
-                self.eval_info["obs_error"] += torch.norm(preds[0] - obs) / n
-                mean_reward += reward / n
+                self.eval_info["obs_error"] += (
+                    torch.norm(preds[0] - obs) / self.tot_steps
+                )
+                mean_reward += reward / self.tot_steps
                 agent_states.append(state)
                 h_t = state[..., : self.config.h_dim]
                 timer.end()
@@ -129,3 +134,55 @@ class Visualizer:
 
         # reset agent states
         return []
+
+
+class GymVisualizer:
+    def __init__(self, config, agent, env_driver, logger, expert_eval_data):
+        self.config = config
+        self.agent = agent
+        self.env_driver = env_driver
+        self.logger = logger
+        self.expert_eval_data = expert_eval_data
+
+        self.log_dir = str(self.logger.writer.log_dir)
+        self.eval_info = None
+        self.tot_steps = self.config.eval_eps * self.config.eval_steps
+
+    def visualize_wm(self, step, expert_sampler):
+        torch.save(self.agent.state_dict(), f"{self.log_dir}/../models/wm_{step}.pt")
+
+    def visualize_policy(self, step):
+        print("Visualizing policy...")
+        env = gym.make("Pendulum-v1", render_mode="rgb_array")
+        mean_reward = 0
+
+        for _ in range(5):
+            obs, info = env.reset()
+            obs = torch.tensor(obs).to(torch.float32).to(self.config.device)
+            obs = obs.unsqueeze(0)
+            _, h_t, _ = self.env_driver.reset()
+
+            for t in range(200):
+                # get image
+                img = env.render()
+                img = Image.fromarray(img)
+                img = img.resize((64, 64))
+                img = torch.tensor(np.array(img)).to(torch.float32).to(self.config.device)
+                img = img / 255.0 - 0.5
+                img = img.unsqueeze(0)
+
+                preds, state, action = self.agent.predict(h_t, img)
+                action = action[0].cpu().numpy()
+                obs, reward, done = env.step(action)[:3]
+                obs = torch.tensor(obs).to(torch.float32).to(self.config.device)
+                obs = obs.unsqueeze(0)
+                h_t = state[..., : self.config.h_dim]
+                mean_reward += reward / 5
+                if done:
+                    break
+
+        env.close()
+        self.logger.log("eval", {"env_reward": mean_reward})
+        torch.save(
+            self.agent.state_dict(), self.log_dir + f"/../models/agent_{step}.pt"
+        )
