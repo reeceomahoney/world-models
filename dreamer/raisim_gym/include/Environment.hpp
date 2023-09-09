@@ -108,7 +108,7 @@ class ENVIRONMENT : public RaisimGymEnv {
     /// visualize if it is the first environment
     if (visualizable_) {
       server_ = std::make_unique<raisim::RaisimServer>(world_.get());
-      server_->launchServer(8086);
+      server_->launchServer();
       server_->focusOn(anymal_);
       visualizationHandler_.setServer(server_);
     }
