@@ -2,8 +2,8 @@ default:
   # Environment
   num_envs: 1
   steps: 1e8
-  replay_size: 1000
-  time_limit: 100
+  replay_size: 1e6
+  time_limit: 1000
   batch_length: 64
   batch_size: 16
   train_ratio: 512
@@ -14,7 +14,6 @@ default:
   prefill: 2500
   pretrain: 100
   device: 'cuda'
-  ssh: True
   record: False
   real_time_eval: False
   zero_shot: False
@@ -25,7 +24,8 @@ default:
   z_dim: 1024
   layers: [512, 512]
   act: silu
-  ensemble_size: 5
+  z_dist: 'Categorical'
+  ensemble_size: 1
 
   # Training
   model_lr: 1e-4
@@ -36,26 +36,29 @@ default:
   ac_eps: 1e-5
   ac_grad_clip: 100
   weight_decay: 1e-6
+  critic_model: 'Gaussian'  # Gaussian or TwoHot
   beta_dyn: 0.5
   beta_repr: 0.1
   gamma: 0.997
   lam: 0.95
   entropy_coeff: 3e-4
   imag_horizon: 15
-  slow_critic_update: 1
-  slow_critic_fraction: 0.02
+  critic_update: 'hard'  # 'hard' or 'soft
+  critic_update_freq: 500
+  critic_update_fraction: 0.02
   action_repeat: 2
   init_zero: False
   unimix_ratio: 0.01
   init_deter: 'zero'
+  policy_gradient: 'dynamics'
 
   # Exploration
   Plan2Explore: False
-  explore_steps: 1e8
+  explore_steps: 1e6
   explore_coeff: 500
   init_std: 1
   max_std: 1
-  min_std: 0.1
+  min_std: 0.01
 
 raisim:
   batch_length: 64
@@ -70,22 +73,40 @@ raisim:
   sim_dt: 0.005
   control_dt: 0.04
   add_velocity_noise: False
-  action_clip: 1
-  random_init_state: True
+  action_clip: 3
+  random_init_state: False
+  expert_init_state: True
   reward:
-    linVel: 0 #4
-    angVel: 0 #2
-    torque: 0 #-1e-5
-    jointSpeed: 0 #-1e-3
+    linVel: 4
+    angVel: 2
   terminal_reward: -1
   commands:
-    fwdVelMax: 1
-    latVelMax: 0.4
-    turnVelMax: 1.2
+    random: True
+    fwdVelMax: 0.5
+    latVelMax: 0.375
+    turnVelMax: 0.625
 
 ditto:
-  ditto_wm_steps: 0
-  ditto_wm_eval_every: 0
+  ditto_dataset: 'fwd_cont_10k'
+  ditto_wm_steps: 5e5
+  ditto_wm_eval_every: 5e3
   ditto_il_steps: 1e8
+  ditto_wm_batch_size: 512
   ditto_batch_size: 512
-  ditto_batch_length: 64
+  ditto_state: 'deter'  # 'deter', 'full', or 'logits'
+  act_diff_coeff: 0
+  wm_visualization: 'post'
+
+debug:
+  num_envs: 1
+  prefill: 300
+  pretrain: 4
+  log_every: 10
+  eval_every: 20
+  time_limit: 1000
+  eval_eps: 2
+  eval_steps: 150
+  device: 'cuda'
+  rick: False
+  ditto_wm_steps: 50
+  ditto_wm_eval_every: 101

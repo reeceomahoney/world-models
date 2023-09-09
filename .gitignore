@@ -12,3 +12,4 @@ __pycache__/
 *.pyc
 *.npy
 .vim-arsync
+*.zip

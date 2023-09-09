@@ -6,6 +6,7 @@ from shutil import copy
 
 import numpy as np
 import torch
+import torch.nn as nn
 from ruamel.yaml import YAML
 from tensorboard import program
 
@@ -106,19 +107,19 @@ def init_config(config_path, args):
 
     # policy training mode
     if args.agent is not None:
-        config_dict["log_every"] = 5e2
-        config_dict["eval_every"] = 2e3
+        config_dict["log_every"] = 1e2
+        config_dict["eval_every"] = 1e2
         config_dict["ditto_wm_steps"] = 0
 
     # debug mode
-    if (
-        hasattr(sys, "gettrace")
-        and sys.gettrace() is not None
-        and "debug" in full_config_dict
-    ):
-        print("debug mode")
-        for key, value in full_config_dict["debug"].items():
-            config_dict[key] = value
+    # if (
+    #     hasattr(sys, "gettrace")
+    #     and sys.gettrace() is not None
+    #     and "debug" in full_config_dict
+    # ):
+    #     print("debug mode")
+    #     for key, value in full_config_dict["debug"].items():
+    #         config_dict[key] = value
 
     config = Config(config_dict)
     config.time_limit //= config.action_repeat
@@ -147,7 +148,74 @@ def symexp(x):
 
 
 def load_expert_data(path, obs_dim, device):
-    expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
-    obs = symlog(expert_data[..., :obs_dim])
-    action = expert_data[..., obs_dim:]
+    # TODO: preprocess image
+    if obs_dim == 40:
+        # raisim
+        expert_data = torch.tensor(np.load(path)).to(torch.float32).to(device)
+        obs = torch.cat(
+            (
+                symlog(expert_data[..., : obs_dim - 4]),
+                expert_data[..., obs_dim - 4 : obs_dim],
+            ),
+            dim=-1,
+        )
+        action = expert_data[..., obs_dim:]
+    elif obs_dim == 3:
+        # pendulum
+        expert_data = np.load(path, allow_pickle=True).item()
+        expert_data = {
+            k: torch.tensor(v).to(torch.float32) for k, v in expert_data.items()
+        }
+        expert_data["obs"] = symlog(expert_data["obs"] / 255.0 - 0.5)
+        return expert_data
+    else:
+        obs = symlog(expert_data[..., :obs_dim])
+        action = expert_data[..., obs_dim:]
     return {"obs": obs, "action": action}
+
+
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        in_num = m.in_features
+        out_num = m.out_features
+        denoms = (in_num + out_num) / 2.0
+        scale = 1.0 / denoms
+        std = np.sqrt(scale) / 0.87962566103423978
+        nn.init.trunc_normal_(
+            m.weight.data, mean=0.0, std=std, a=-2.0 * std, b=2.0 * std
+        )
+        if hasattr(m.bias, "data"):
+            m.bias.data.fill_(0.0)
+    elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        space = m.kernel_size[0] * m.kernel_size[1]
+        in_num = space * m.in_channels
+        out_num = space * m.out_channels
+        denoms = (in_num + out_num) / 2.0
+        scale = 1.0 / denoms
+        std = np.sqrt(scale) / 0.87962566103423978
+        nn.init.trunc_normal_(m.weight.data, mean=0.0, std=std, a=-2.0, b=2.0)
+        if hasattr(m.bias, "data"):
+            m.bias.data.fill_(0.0)
+    elif isinstance(m, nn.LayerNorm):
+        m.weight.data.fill_(1.0)
+        if hasattr(m.bias, "data"):
+            m.bias.data.fill_(0.0)
+
+
+def uniform_weight_init(given_scale):
+    def f(m):
+        if isinstance(m, nn.Linear):
+            in_num = m.in_features
+            out_num = m.out_features
+            denoms = (in_num + out_num) / 2.0
+            scale = given_scale / denoms
+            limit = np.sqrt(3 * scale)
+            nn.init.uniform_(m.weight.data, a=-limit, b=limit)
+            if hasattr(m.bias, "data"):
+                m.bias.data.fill_(0.0)
+        elif isinstance(m, nn.LayerNorm):
+            m.weight.data.fill_(1.0)
+            if hasattr(m.bias, "data"):
+                m.bias.data.fill_(0.0)
+
+    return f
